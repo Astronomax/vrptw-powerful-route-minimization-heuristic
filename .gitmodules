@@ -1,0 +1,4 @@
+[submodule "src/lib/small"]
+	path = src/lib/small
+	url = https://github.com/tarantool/small
+	ignore = dirty

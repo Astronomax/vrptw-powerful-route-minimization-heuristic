@@ -1,0 +1,5 @@
+set(SMALL_EMBEDDED ON)
+add_subdirectory(bit)
+add_subdirectory(small)
+add_subdirectory(core)
+add_subdirectory(test)
