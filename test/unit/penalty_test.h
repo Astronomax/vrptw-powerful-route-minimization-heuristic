@@ -42,12 +42,17 @@ struct penalty_vtab {
 
     double
     (*penalty_exchange_penalty_delta)(struct customer *v, struct customer *w);
+
+    double
+    (*penalty_exchange_penalty_delta_lower_bound)(
+	    struct customer *v, struct customer *w, bool *exact);
 };
 
 static struct penalty_vtab vtab;
 
-#define assert_eq(lhs, rhs) if(lhs!=rhs)exit(1)
-#define assert_near(lhs, rhs) if(fabs(lhs-rhs)>1e-5)exit(1)
+#define assert_geq(lhs, rhs) do{if(lhs<rhs)exit(1);}while(0)
+#define assert_eq(lhs, rhs) do{if(lhs!=rhs)exit(1);}while(0)
+#define assert_near(lhs, rhs) do{if(fabs(lhs-rhs)>1e-5)exit(1);}while(0)
 
 #define RANDOM_MODIFICATIONS_BEFORE_INSERT			\
 	double delta = vtab.penalty_get_insert_delta(v, w);	\
@@ -93,15 +98,28 @@ static struct penalty_vtab vtab;
 		       + vtab.penalty_get_penalty(w_route);	\
 	assert_near(after - before, delta)
 
-#define RANDOM_MODIFICATIONS_BEFORE_EXCHANGE				\
+#define RANDOM_MODIFICATIONS_BEFORE_INTER_ROUTE_EXCHANGE		\
 	double delta = vtab.penalty_exchange_penalty_delta(v, w);	\
 	double before = vtab.penalty_get_penalty(v_route)		\
 			+ vtab.penalty_get_penalty(w_route)
 
-#define RANDOM_MODIFICATIONS_AFTER_EXCHANGE			\
+#define RANDOM_MODIFICATIONS_AFTER_INTER_ROUTE_EXCHANGE		\
 	double after = vtab.penalty_get_penalty(v_route)	\
 		       + vtab.penalty_get_penalty(w_route);	\
 	assert_near(after - before, delta)
+
+#define RANDOM_MODIFICATIONS_BEFORE_INTRA_ROUTE_EXCHANGE			\
+	double before = vtab.penalty_get_penalty(route);			\
+	bool exact;								\
+	double lower_bound =							\
+		vtab.penalty_exchange_penalty_delta_lower_bound(v, w, &exact)
+
+#define RANDOM_MODIFICATIONS_AFTER_INTRA_ROUTE_EXCHANGE		\
+	double after = vtab.penalty_get_penalty(route);		\
+	if (exact)						\
+		assert_near(after - before, lower_bound);	\
+	else							\
+		assert_geq(after - before + EPS7, lower_bound)
 
 #include "random_modifications.h"
 
@@ -115,7 +133,8 @@ static struct penalty_vtab vtab;
 #undef RANDOM_MODIFICATIONS_AFTER_TWO_OPT
 #undef RANDOM_MODIFICATIONS_BEFORE_OUT_RELOCATE
 #undef RANDOM_MODIFICATIONS_AFTER_OUT_RELOCATE
-#undef RANDOM_MODIFICATIONS_BEFORE_EXCHANGE
-#undef RANDOM_MODIFICATIONS_AFTER_EXCHANGE
+#undef RANDOM_MODIFICATIONS_BEFORE_INTER_ROUTE_EXCHANGE
+#undef RANDOM_MODIFICATIONS_BEFORE_INTRA_ROUTE_EXCHANGE
+#undef RANDOM_MODIFICATIONS_AFTER_INTRA_ROUTE_EXCHANGE
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_PENALTY_TEST_H

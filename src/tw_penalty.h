@@ -4,6 +4,7 @@
 #include "small/rlist.h"
 
 #define tw_penalty_attr \
+    int idx;            \
     double a;		\
     double tw_pf;	\
     double z;		\
@@ -11,6 +12,8 @@
 
 #include "customer.h"
 #include "route.h"
+
+#include <stdbool.h>
 
 void
 tw_penalty_init(struct route *r);
@@ -69,5 +72,9 @@ tw_penalty_exchange_penalty_delta_fast(struct customer *v, struct customer *w);
 double
 tw_penalty_exchange_penalty_delta(struct customer *v, struct customer *w);
 
+double
+tw_penalty_exchange_penalty_delta_lower_bound(struct customer *v,
+					      struct customer *w,
+					      bool *exact);
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_TW_PENALTY_H

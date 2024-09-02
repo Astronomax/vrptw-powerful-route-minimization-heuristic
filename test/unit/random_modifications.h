@@ -187,7 +187,7 @@ random_out_relocations(int n_tests)
 }
 
 void
-random_exchanges(int n_tests)
+random_inter_route_exchanges(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
 		generate_random_problem(MAX_N_CUSTOMERS);
@@ -207,10 +207,35 @@ random_exchanges(int n_tests)
 			int w_idx = randint(v_route_len, p.n_customers - 1);
 			struct customer *v = cs[v_idx];
 			w = cs[w_idx];
-			RANDOM_MODIFICATIONS_BEFORE_EXCHANGE;
+			RANDOM_MODIFICATIONS_BEFORE_INTER_ROUTE_EXCHANGE;
 			modify(EXCHANGE, v, w);
 			SWAP(cs[v_idx], cs[w_idx]);
-			RANDOM_MODIFICATIONS_AFTER_EXCHANGE;
+			RANDOM_MODIFICATIONS_AFTER_INTER_ROUTE_EXCHANGE;
+		}
+	}
+}
+
+void
+random_intra_route_exchanges(int n_tests)
+{
+	for (int i = 0; i < n_tests; i++) {
+		generate_random_problem(MAX_N_CUSTOMERS);
+		struct route *route = route_new();
+		struct customer *w;
+		int j = 0;
+		rlist_foreach_entry(w, &p.customers, in_route)
+			cs[j++] = w;
+		route_init(route, &cs[0], p.n_customers);
+
+		for (j = 0; j < p.n_customers; j++) {
+			int v_idx = randint(0, p.n_customers - 1);
+			int w_idx = randint(0, p.n_customers - 1);
+			struct customer *v = cs[v_idx];
+			w = cs[w_idx];
+			RANDOM_MODIFICATIONS_BEFORE_INTRA_ROUTE_EXCHANGE;
+			modify(EXCHANGE, v, w);
+			SWAP(cs[v_idx], cs[w_idx]);
+			RANDOM_MODIFICATIONS_AFTER_INTRA_ROUTE_EXCHANGE;
 		}
 	}
 }

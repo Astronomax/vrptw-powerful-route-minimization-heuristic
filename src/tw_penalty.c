@@ -16,6 +16,7 @@ tw_penalty_init(struct route *r)
 	double a_quote;
 	struct customer *prev = depot_head(r);
 	prev->a = prev->tw_pf = 0.;
+	prev->idx = 0;
 	for (next = rlist_next_entry(prev, in_route);
 	     !rlist_entry_is_head(next, &r->list, in_route);
 	     next = rlist_next_entry(next, in_route)) {
@@ -23,6 +24,7 @@ tw_penalty_init(struct route *r)
 		next->a = MIN(MAX(a_quote, next->e), next->l);
 		next->tw_pf =
 			prev->tw_pf + MAX(0., a_quote - next->l);
+		next->idx = prev->idx + 1;
 		prev = next;
 	}
 	double z_quote;
@@ -158,7 +160,7 @@ tw_penalty_out_relocate_penalty_delta_fast
 double
 tw_penalty_out_relocate_penalty_delta(struct customer *v, struct customer *w)
 {
-	/** This will probably never be called */
+	/** This branch will probably never be executed */
 	if (unlikely(v->route == w->route))
 		return tw_penalty_out_relocate_penalty_delta_slow(v, w);
 	else
@@ -184,9 +186,65 @@ tw_penalty_exchange_penalty_delta_fast(struct customer *v, struct customer *w)
 double
 tw_penalty_exchange_penalty_delta(struct customer *v, struct customer *w)
 {
-	/** This will probably never be called */
+	/** This branch will probably never be executed */
 	if (unlikely(v->route == w->route))
 		return tw_penalty_exchange_penalty_delta_slow(v, w);
 	else
 		return tw_penalty_exchange_penalty_delta_fast(v, w);
+}
+
+double
+tw_penalty_exchange_penalty_delta_lower_bound(struct customer *v,
+					      struct customer *w,
+					      bool *exact)
+{
+	if (unlikely(v == w)) {
+		*exact = true;
+		return 0.f;
+	}
+	/** This branch will probably never be executed */
+	if (unlikely(v->route != w->route)) {
+		*exact = true;
+		return tw_penalty_exchange_penalty_delta_fast(v, w);
+	}
+#define upd_through_seg(c0, c1, c2) do { 			\
+	seg[0] = c0; seg[1] = c1; seg[2] = c2;			\
+	a = seg[0]->a, a_quote;                     		\
+	for (int j = 1; j < 3; j++) {				\
+		a_quote = a + seg[j - 1]->s			\
+			+ dist(seg[j - 1], seg[j]);		\
+		a = MIN(MAX(a_quote, seg[j]->e), seg[j]->l);	\
+		p_tw += MAX(0., a_quote - seg[j]->l);		\
+	}} while(0)
+
+		struct route *r = v->route;
+		if (v->idx > w->idx)
+			SWAP(v, w);
+		struct customer *v_minus = route_prev(v), *v_plus = route_next(v),
+			*w_minus = route_prev(w), *w_plus = route_next(w);
+		double p_tw = v_minus->tw_pf;
+		struct customer *seg[3];
+		double a = 0., a_quote = 0.;
+		if (likely(v->idx + 1 < w->idx)) {
+			upd_through_seg(v_minus, w, v_plus);
+			if (unlikely(fabs(a - v_plus->a) < EPS7)) {
+				p_tw += w_minus->tw_pf - v_plus->tw_pf;
+				upd_through_seg(w_minus, v, w_plus);
+				if (unlikely(fabs(a - w_plus->a) < EPS7)) {
+					p_tw += depot_tail(r)->tw_pf - w_plus->tw_pf;
+					*exact = true;
+					return p_tw - tw_penalty_get_penalty(r);
+				}
+			}
+			*exact = false;
+			return p_tw - tw_penalty_get_penalty(r);
+		} else {
+			upd_through_seg(v_minus, w, v);
+			p_tw += w_plus->tw_sf;
+			double a_quote_w_plus = a + v->s + dist(v, w_plus);
+			p_tw += MAX(0., a_quote_w_plus - w_plus->z);
+			*exact = true;
+			return p_tw - tw_penalty_get_penalty(r);
+		}
+#undef upd_through_seg
 }

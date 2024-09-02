@@ -4,8 +4,8 @@
 
 #include "problem.h"
 
-#define assert_eq(lhs, rhs) if(lhs!=rhs)exit(1)
-#define assert_neq(lhs, rhs) if(lhs==rhs)exit(1)
+#define assert_eq(lhs, rhs) do{if(lhs!=rhs)exit(1);}while(0)
+#define assert_neq(lhs, rhs) do{if(lhs==rhs)exit(1);}while(0)
 
 #define RANDOM_MODIFICATIONS_BEFORE_INSERT
 #define RANDOM_MODIFICATIONS_AFTER_INSERT			\
@@ -92,8 +92,8 @@
 	}							\
 	assert_eq(k, p.n_customers + 1)
 
-#define RANDOM_MODIFICATIONS_BEFORE_EXCHANGE
-#define RANDOM_MODIFICATIONS_AFTER_EXCHANGE			\
+#define RANDOM_MODIFICATIONS_BEFORE_INTER_ROUTE_EXCHANGE
+#define RANDOM_MODIFICATIONS_AFTER_INTER_ROUTE_EXCHANGE		\
 	int k = 0;						\
 	route_foreach(v, v_route) {				\
 		if (v->id == 0)					\
@@ -110,6 +110,8 @@
 	}							\
 	assert_eq(k, p.n_customers)
 
+#define RANDOM_MODIFICATIONS_BEFORE_INTRA_ROUTE_EXCHANGE
+#define RANDOM_MODIFICATIONS_AFTER_INTRA_ROUTE_EXCHANGE
 
 #include "random_modifications.h"
 
@@ -123,8 +125,10 @@
 #undef RANDOM_MODIFICATIONS_AFTER_TWO_OPT
 #undef RANDOM_MODIFICATIONS_BEFORE_OUT_RELOCATE
 #undef RANDOM_MODIFICATIONS_AFTER_OUT_RELOCATE
-#undef RANDOM_MODIFICATIONS_BEFORE_EXCHANGE
-#undef RANDOM_MODIFICATIONS_AFTER_EXCHANGE
+#undef RANDOM_MODIFICATIONS_BEFORE_INTER_ROUTE_EXCHANGE
+#undef RANDOM_MODIFICATIONS_AFTER_INTER_ROUTE_EXCHANGE
+#undef RANDOM_MODIFICATIONS_BEFORE_INTRA_ROUTE_EXCHANGE
+#undef RANDOM_MODIFICATIONS_AFTER_INTRA_ROUTE_EXCHANGE
 
 int
 applicable()
@@ -244,7 +248,7 @@ main(void)
 	random_replacements(100);
 	random_two_opts(100);
 	random_out_relocations(100);
-	random_exchanges(100);
+	random_inter_route_exchanges(100);
 
 	applicable();
 	return 0;

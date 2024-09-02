@@ -75,13 +75,15 @@ modification_apply(struct modification m)
 		break;
 	}
 	case OUT_RELOCATE: {
+		if (m.v == m.w)
+			return;
 		rlist_move_entry(
 			rlist_prev(&m.v->in_route), m.w, in_route);
 		m.w->route = v_route;
 		break;
 	}
 	case EXCHANGE: {
-		if (m.v->id == 0 && m.w->id == 0)
+		if (m.v == m.w)
 			return;
 		rlist_swap_items(&m.v->in_route, &m.w->in_route);
 		SWAP(m.v->route, m.w->route);
