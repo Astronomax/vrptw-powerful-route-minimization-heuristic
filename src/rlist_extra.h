@@ -9,10 +9,21 @@ rlist_swap_items(struct rlist *lhs, struct rlist *rhs)
 {
 	assert(lhs->next != lhs);
 	assert(rhs->next != rhs);
-	SWAP(lhs->prev, rhs->prev);
-	SWAP(lhs->next, rhs->next);
-	SWAP(lhs->prev->next, rhs->prev->next);
-	SWAP(lhs->next->prev, rhs->next->prev);
+	if (rhs->next == lhs)
+		SWAP(lhs, rhs);
+	if (lhs->next == rhs) {
+		SWAP(lhs->prev, rhs->prev);
+		SWAP(lhs->next, rhs->next);
+		lhs->next->prev = lhs;
+		rhs->prev->next = rhs;
+		lhs->prev = rhs;
+		rhs->next = lhs;
+	} else {
+		SWAP(lhs->prev, rhs->prev);
+		SWAP(lhs->next, rhs->next);
+		SWAP(lhs->prev->next, rhs->prev->next);
+		SWAP(lhs->next->prev, rhs->next->prev);
+	}
 }
 
 void ALWAYS_INLINE

@@ -20,21 +20,25 @@ struct route {
 	assert(rlist_first_entry(&r->list, struct customer, in_route)->id == 0); \
 	assert(rlist_last_entry(&r->list, struct customer, in_route)->id == 0)
 
-#define route_init_penalty(r)	\
-	c_penalty_init(r);	\
-	tw_penalty_init(r);	\
-	distance_init(r)
-
 #define route_foreach(c, r) rlist_foreach_entry(c, &r->list, in_route)
+#define route_foreach_from(c, from, r)  \
+	for (c = from; !rlist_entry_is_head(c, &r->list, in_route); \
+	c = rlist_next_entry(c, in_route))
 
 #define depot_head(r) rlist_first_entry(&r->list, struct customer, in_route)
 #define depot_tail(r) rlist_last_entry(&r->list, struct customer, in_route)
+
+#define route_prev(c) rlist_prev_entry(c, in_route)
+#define route_next(c) rlist_next_entry(c, in_route)
 
 struct route *
 route_new();
 
 void
 route_init(struct route *r, struct customer **arr, int n);
+
+void
+route_init_penalty(struct route *r);
 
 struct route *
 route_dup(struct route *r);

@@ -50,6 +50,16 @@ extern "C" {
 # define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
+#define EPS1 1e-1
+#define EPS2 1e-2
+#define EPS3 1e-3
+#define EPS4 1e-4
+#define EPS5 1e-5
+#define EPS6 1e-6
+#define EPS7 1e-7
+#define EPS8 1e-8
+#define EPS9 1e-9
+
 #define SWAP(a, b) do {							\
 	__typeof__(a) tmp = (a);					\
 	(a) = (b);							\

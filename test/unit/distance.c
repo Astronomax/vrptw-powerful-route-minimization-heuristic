@@ -18,6 +18,7 @@ static const struct penalty_vtab distance_vtab = {
 	/* .penalty_two_opt_penalty_delta = */ distance_two_opt_distance_delta,
 	/* .penalty_out_relocate_penalty_delta = */distance_out_relocate_distance_delta,
 	/* .penalty_exchange_penalty_delta = */distance_exchange_distance_delta,
+	/* .tw_penalty_exchange_penalty_delta_lower_bound = */NULL,
 };
 
 int
@@ -30,6 +31,6 @@ main(void)
 	random_replacements(100);
 	random_two_opts(100);
 	random_out_relocations(100);
-	random_exchanges(100);
+	random_inter_route_exchanges(100);
 	return 0;
 }

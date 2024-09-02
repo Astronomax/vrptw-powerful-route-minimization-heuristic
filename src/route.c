@@ -28,6 +28,14 @@ route_init(struct route *r, struct customer **arr, int n)
 	route_check(r);
 }
 
+void
+route_init_penalty(struct route *r)
+{
+	c_penalty_init(r);
+        tw_penalty_init(r);
+        distance_init(r);
+}
+
 struct route *
 route_dup(struct route *r)
 {
