@@ -45,9 +45,10 @@ extern "C" {
 
 #define restrict __restrict__
 
-#ifndef MAX
-# define MAX(a, b) ((a) > (b) ? (a) : (b))
-# define MIN(a, b) ((a) < (b) ? (a) : (b))
+#ifndef NDEBUG
+#define TRASH(ptr) memset(ptr, '#', sizeof(*ptr))
+#else
+#define TRASH(ptr) (void) (ptr)
 #endif
 
 #define EPS1 1e-1
@@ -60,6 +61,11 @@ extern "C" {
 #define EPS8 1e-8
 #define EPS9 1e-9
 
+#ifndef MAX
+# define MAX(a, b) ((a) > (b) ? (a) : (b))
+# define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 #define SWAP(a, b) do {							\
 	__typeof__(a) tmp = (a);					\
 	(a) = (b);							\
@@ -68,9 +74,38 @@ extern "C" {
 
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 
+#define nelem(x)     (sizeof((x))/sizeof((x)[0]))
+#define field_sizeof(compound_type, field) sizeof(((compound_type *)NULL)->field)
 #ifndef lengthof
 #define lengthof(array) (sizeof (array) / sizeof ((array)[0]))
 #endif
+
+static inline void
+alloc_failure(const char *filename, int line, size_t size)
+{
+	fprintf(stderr, "Can't allocate %zu bytes at %s:%d",
+		size, filename, line);
+	exit(EXIT_FAILURE);
+}
+
+/**
+ * An x* variant of a memory allocation function calls the original function
+ * and panics if it fails (i.e. it should never return NULL).
+ */
+#define xalloc_impl(size, func, args...)					\
+	({									\
+		void *ret = func(args);						\
+		if (unlikely(ret == NULL))					\
+			alloc_failure(__FILE__, __LINE__, (size));		\
+		ret;								\
+	})
+
+#define xmalloc(size)		xalloc_impl((size), malloc, (size))
+#define xcalloc(n, size)	xalloc_impl((n) * (size), calloc, (n), (size))
+#define xrealloc(ptr, size)	xalloc_impl((size), realloc, (ptr), (size))
+#define xstrdup(s)		xalloc_impl(strlen((s)) + 1, strdup, (s))
+#define xstrndup(s, n)		xalloc_impl((n) + 1, strndup, (s), (n))
+#define xmempool_alloc(p)	xalloc_impl((p)->objsize, mempool_alloc, (p))
 
 /** \cond public */
 
@@ -404,6 +439,28 @@ extern "C" {
 #  define PACKED __packed
 #else
 #  define PACKED
+#endif
+
+/**
+ * Helper macro to handle easily snprintf() result
+ */
+#define SNPRINT(_total, _fun, _buf, _size, ...) do {				\
+	int written =_fun(_buf, _size, ##__VA_ARGS__);				\
+	if (written < 0)							\
+		return -1;							\
+	_total += written;							\
+	if (written < _size) {							\
+		_buf += written, _size -= written;				\
+	} else {								\
+		_buf = NULL, _size = 0;						\
+	}									\
+} while(0)
+
+/** Like assert() but evaluates the given expression even if NDEBUG is set. */
+#ifndef NDEBUG
+# define VERIFY(expr) assert(expr)
+#else
+# define VERIFY(expr) ((void)(expr))
 #endif
 
 #if defined(__cplusplus)

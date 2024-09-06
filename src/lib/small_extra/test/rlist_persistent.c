@@ -1,5 +1,5 @@
 #include "../small/test/unit.h"
-#include "../include/rlist_persistent.h"
+#include "../small_extra/rlist_persistent.h"
 
 #define ITEMS		7
 

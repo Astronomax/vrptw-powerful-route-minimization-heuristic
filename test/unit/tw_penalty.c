@@ -19,7 +19,7 @@ static const struct penalty_vtab tw_penalty_vtab = {
 	/* .penalty_two_opt_penalty_delta = */ tw_penalty_two_opt_penalty_delta,
 	/* .penalty_out_relocate_penalty_delta = */tw_penalty_out_relocate_penalty_delta,
 	/* .penalty_exchange_penalty_delta = */tw_penalty_exchange_penalty_delta,
-	/* .tw_penalty_exchange_penalty_delta_lower_bound = */tw_penalty_exchange_penalty_delta_lower_bound,
+	/* .penalty_exchange_penalty_delta_lower_bound = */tw_penalty_exchange_penalty_delta_lower_bound,
 };
 
 int

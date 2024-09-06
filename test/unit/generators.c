@@ -14,6 +14,7 @@ generate_random_customer()
 	c->e = (double)real_random_in_range(0, 50);
 	c->l = c->e + (double)real_random_in_range(0, 50);
 	c->s = (double)real_random_in_range(0, 20);
+	c->p = (int)real_random_in_range(0, 5);
 	rlist_create(&c->in_route);
 	return c;
 }
