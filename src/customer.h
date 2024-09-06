@@ -6,6 +6,7 @@
 #include "small/rlist.h"
 #include "tw_penalty.h"
 #include "c_penalty.h"
+#include "ejection.h"
 #include "distance.h"
 
 struct customer {
@@ -16,11 +17,13 @@ struct customer {
 	double e;
 	double l;
 	double s;
+	feasible_ejections_attr;
 	tw_penalty_attr;
 	c_penalty_attr;
 	distance_attr;
 	struct route *route;
 	struct rlist in_route;
+    	struct rlist in_eject;
 };
 
 struct customer *

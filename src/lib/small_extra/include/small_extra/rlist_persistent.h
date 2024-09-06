@@ -31,8 +31,7 @@
  * SUCH DAMAGE.
  */
 #include <stddef.h>
-#include "lib/small/include/small/util.h"
-#include "lib/small/include/small/rlist.h"
+#include "small/rlist.h"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -91,6 +90,8 @@ rlist_persistent_rollback_to_svp(rlist_persistent_history *history,
 	rlist_foreach_entry_safe_reverse(op, history, in_history, tmp) {
 		if (op == svp)
 			return;
+		assert(*op->var == op->next_val);
+		*op->var = op->prev_val;
 		rlist_del_entry(op, in_history);
 		rlist_assign_op_delete(op);
 	}
@@ -102,6 +103,12 @@ rlist_persistent_rollback_to_svp(rlist_persistent_history *history,
 	rlist_add_tail_entry(history, op, in_history);                 	\
 	x = y;                         					\
 } while(0)
+
+//void rlist_assign(struct rlist **x, struct rlist *y) {
+//	struct rlist_assign_op *op = rlist_assign_op_new(x, *x, y);
+//	rlist_add_tail_entry(history, op, in_history);
+//	*x = y;
+//}
 
 /**
  * init list head (or list entry as ins't included in list)
