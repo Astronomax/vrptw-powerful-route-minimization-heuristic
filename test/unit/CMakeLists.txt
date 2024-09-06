@@ -28,13 +28,14 @@ endfunction()
 add_library(unit STATIC unit.c)
 
 set(common_sources
+        ${PROJECT_SOURCE_DIR}/src/c_penalty.c
         ${PROJECT_SOURCE_DIR}/src/customer.c
         ${PROJECT_SOURCE_DIR}/src/distance.c
-        ${PROJECT_SOURCE_DIR}/src/route.c
+        ${PROJECT_SOURCE_DIR}/src/ejection.c
         ${PROJECT_SOURCE_DIR}/src/modification.c
         ${PROJECT_SOURCE_DIR}/src/problem.c
+        ${PROJECT_SOURCE_DIR}/src/route.c
         ${PROJECT_SOURCE_DIR}/src/tw_penalty.c
-        ${PROJECT_SOURCE_DIR}/src/c_penalty.c
         generators.c
 )
 
@@ -54,6 +55,11 @@ create_unit_test(PREFIX distance
 )
 
 create_unit_test(PREFIX modification
-        SOURCES modification.c ${common_sources}
-        LIBRARIES core unit
+                 SOURCES modification.c ${common_sources}
+                 LIBRARIES core unit
+)
+
+create_unit_test(PREFIX ejection
+                 SOURCES ejection.c ${common_sources}
+                 LIBRARIES core unit
 )
