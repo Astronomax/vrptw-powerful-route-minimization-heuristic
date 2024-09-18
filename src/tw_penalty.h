@@ -2,6 +2,7 @@
 #define EAMA_ROUTES_MINIMIZATION_HEURISTIC_TW_PENALTY_H
 
 #include "small/rlist.h"
+#include <stdbool.h>
 
 #define tw_penalty_attr \
     int idx;            \
@@ -10,10 +11,8 @@
     double z;		\
     double tw_sf
 
-#include "customer.h"
-#include "route.h"
-
-#include <stdbool.h>
+struct customer;
+struct route;
 
 void
 tw_penalty_init(struct route *r);

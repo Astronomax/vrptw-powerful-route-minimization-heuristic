@@ -9,6 +9,8 @@
 #include "ejection.h"
 #include "distance.h"
 
+struct route;
+
 struct customer {
 	int id;
 	double x;

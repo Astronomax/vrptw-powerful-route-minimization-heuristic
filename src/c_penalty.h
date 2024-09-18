@@ -5,9 +5,10 @@
     double demand_pf;	\
     double demand_sf
 
-#include "customer.h"
 #include "problem.h"
-#include "route.h"
+
+struct customer;
+struct route;
 
 void
 c_penalty_init(struct route *r);
