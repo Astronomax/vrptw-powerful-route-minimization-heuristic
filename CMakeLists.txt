@@ -47,6 +47,7 @@ set (sources
 )
 
 add_executable(routes ${sources})
+target_compile_options(routes PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(routes small core)
 
 add_subdirectory(test)

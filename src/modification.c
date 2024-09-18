@@ -1,5 +1,5 @@
 #include "modification.h"
-#include "rlist_extra.h"
+#include "small_extra/rlist_extra.h"
 
 int
 modification_applicable(struct modification m)
