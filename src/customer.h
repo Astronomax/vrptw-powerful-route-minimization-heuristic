@@ -28,6 +28,8 @@ struct customer {
     	struct rlist in_eject;
 };
 
+#define is_ejected(c) rlist_empty(&c->in_route)
+
 struct customer *
 customer_dup(struct customer *c);
 

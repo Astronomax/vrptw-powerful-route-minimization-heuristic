@@ -3,13 +3,17 @@
 
 #include "customer.h"
 
+#if defined(__cplusplus)
+extern "C" {
+#endif /* defined(__cplusplus) */
+
 enum modification_type {
     TWO_OPT,
     OUT_RELOCATE,
     EXCHANGE,
     INSERT,
     EJECT,
-    modification_count
+    modification_max
 };
 
 struct modification {
@@ -27,5 +31,9 @@ modification_apply(struct modification m);
 
 double
 modification_delta(struct modification m, double alpha, double beta);
+
+#if defined(__cplusplus)
+}
+#endif /* defined(__cplusplus) */
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_MODIFICATION_H

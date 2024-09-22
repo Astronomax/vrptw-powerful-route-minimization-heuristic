@@ -5,7 +5,7 @@
 #include "utils.h"
 
 void
-random_subset(int *arr, int n, int k)
+random_subset(struct customer **arr, int n, int k)
 {
 	for (int i = 0; i < k; i++) {
 		int j = (int)pseudo_random_in_range(i, n - 1);
@@ -14,7 +14,7 @@ random_subset(int *arr, int n, int k)
 }
 
 void
-random_shuffle(int *arr, int n)
+random_shuffle(struct customer **arr, int n)
 {
 	random_subset(arr, n, n - 1);
 }

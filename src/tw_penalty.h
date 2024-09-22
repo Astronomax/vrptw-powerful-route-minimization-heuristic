@@ -14,6 +14,10 @@
 struct customer;
 struct route;
 
+#if defined(__cplusplus)
+extern "C" {
+#endif /* defined(__cplusplus) */
+
 void
 tw_penalty_init(struct route *r);
 
@@ -75,5 +79,10 @@ double
 tw_penalty_exchange_penalty_delta_lower_bound(struct customer *v,
 					      struct customer *w,
 					      bool *exact);
+
+#if defined(__cplusplus)
+}
+#endif /* defined(__cplusplus) */
+
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_TW_PENALTY_H

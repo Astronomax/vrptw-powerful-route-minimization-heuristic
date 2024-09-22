@@ -37,17 +37,18 @@ set (sources
     src/c_penalty.c
     src/customer.c
     src/distance.c
-        src/ejection.c
+    src/ejection.c
     src/modification.c
     src/problem.c
+    src/random_utils.c
     src/route.c
-    src/solution.c
+    src/solution.cc
     src/tw_penalty.c
     src/main.c
 )
 
 add_executable(routes ${sources})
-target_compile_options(routes PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(routes PRIVATE -Wall -Wextra -Wpedantic -Wno-gnu-statement-expression)
 target_link_libraries(routes small core)
 
 add_subdirectory(test)

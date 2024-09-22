@@ -2,7 +2,7 @@
 #include "generators.h"
 
 struct customer *
-generate_random_customer()
+generate_random_customer(void)
 {
 	/** It doesn’t matter how to allocate customers in tests */
 	struct customer *c = malloc(sizeof(*c));
@@ -19,6 +19,7 @@ generate_random_customer()
 	return c;
 }
 
+/*
 struct route *
 generate_random_route(struct customer *depot, int max_customer_count)
 {
@@ -42,7 +43,7 @@ generate_random_route(struct customer *depot, int max_customer_count)
 	}
 	rlist_add_tail_entry(&r->list, depot, in_route);
 	return r;
-}
+}*/
 
 void
 generate_random_problem(int max_n_customers)
