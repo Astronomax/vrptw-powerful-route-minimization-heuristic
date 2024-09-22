@@ -131,9 +131,9 @@
 #undef RANDOM_MODIFICATIONS_AFTER_INTRA_ROUTE_EXCHANGE
 
 int
-applicable()
+applicable(void)
 {
-	generate_random_problem(MAX_N_CUSTOMERS);
+	generate_random_problem(MAX_N_CUSTOMERS_TEST);
 	struct route *v_route = route_new();
 	struct route *w_route = route_new();
 	int v_route_len = randint(1, p.n_customers / 3);

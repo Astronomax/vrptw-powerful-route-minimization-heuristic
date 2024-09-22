@@ -225,6 +225,17 @@ fiber_yield(void)
 	fiber_yield_impl();
 }
 
+void
+fiber_gc(void)
+{
+	if (region_used(&fiber()->gc) < 128 * 1024) {
+		region_reset(&fiber()->gc);
+		return;
+	}
+
+	region_free(&fiber()->gc);
+}
+
 /** Destroy an active fiber and prepare it for reuse or delete it. */
 static void
 fiber_recycle(struct fiber *fiber)
@@ -233,6 +244,7 @@ fiber_recycle(struct fiber *fiber)
 	/* no exceptions are leaking */
 	assert(diag_is_empty(&fiber->diag));
 	fiber->f = NULL;
+	region_free(&fiber->gc);
 	if (fiber_is_reusable(fiber->flags)) {
 		rlist_move_entry(&cord()->dead, fiber, link);
 	} else {
@@ -402,6 +414,8 @@ fiber_new_ex(const struct fiber_attr *fiber_attr, fiber_func f)
 		coro_create(&fiber->ctx, fiber_loop, NULL,
 			    fiber->stack, fiber->stack_size);
 
+		region_create(&fiber->gc, &cord->slabc);
+
 		diag_create(&fiber->diag);
 
 		rlist_add_entry(&cord->alive, fiber, link);
@@ -436,6 +450,7 @@ fiber_destroy(struct cord *cord, struct fiber *f)
 {
 	assert(f != cord->fiber);
 	rlist_del(&f->link);
+	region_destroy(&f->gc);
 	fiber_stack_destroy(f, &cord->slabc);
 	diag_destroy(&f->diag);
 	TRASH(f);
@@ -483,6 +498,7 @@ cord_create(struct cord *cord)
 	/* sched fiber is not present in alive/dead list. */
 	rlist_create(&cord->sched.link);
 	diag_create(&cord->sched.diag);
+	region_create(&cord->sched.gc, &cord->slabc);
 	cord->fiber = &cord->sched;
 	cord->sched.flags = FIBER_IS_RUNNING;
 
@@ -517,7 +533,8 @@ cord_destroy(struct cord *cord)
 	slab_cache_set_thread(&cord->slabc);
 	fiber_delete_all(cord);
 	cord->fiber = NULL;
-	fiber_destroy(cord, &cord->sched);
+	region_destroy(&cord->sched.gc);
+	diag_destroy(&cord->sched.diag);
 	slab_cache_destroy(&cord->slabc);
 }
 

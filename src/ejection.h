@@ -10,7 +10,7 @@
 	 * while iterating through feasible ejections.
 	 */				\
 	double a_temp;			\
-	double a_quote;
+	double a_quote
 
 /**
  * @brief Iterate over feasible ejections (a subsets of route customers such

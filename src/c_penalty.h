@@ -10,6 +10,10 @@
 struct customer;
 struct route;
 
+#if defined(__cplusplus)
+extern "C" {
+#endif /* defined(__cplusplus) */
+
 void
 c_penalty_init(struct route *r);
 
@@ -60,5 +64,10 @@ c_penalty_out_relocate_penalty_delta(struct customer *v, struct customer *w);
 
 double
 c_penalty_exchange_penalty_delta(struct customer *v, struct customer *w);
+
+#if defined(__cplusplus)
+}
+#endif /* defined(__cplusplus) */
+
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_C_PENALTY_H

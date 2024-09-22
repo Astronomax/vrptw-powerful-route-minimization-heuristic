@@ -1,10 +1,20 @@
 #ifndef EAMA_ROUTES_MINIMIZATION_HEURISTIC_RANDOM_UTILS_H
 #define EAMA_ROUTES_MINIMIZATION_HEURISTIC_RANDOM_UTILS_H
 
-void
-random_subset(int *arr, int n, int k);
+#include "customer.h"
+
+#if defined(__cplusplus)
+extern "C" {
+#endif /* defined(__cplusplus) */
 
 void
-random_shuffle(int *arr, int n);
+random_subset(struct customer **arr, int n, int k);
+
+void
+random_shuffle(struct customer **arr, int n);
+
+#if defined(__cplusplus)
+}
+#endif /* defined(__cplusplus) */
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_RANDOM_UTILS_H

@@ -6,9 +6,9 @@
 
 #include "small_extra/rlist_persistent.h"
 
-#define MAX_N_CUSTOMERS 10
+#define MAX_N_CUSTOMERS_TEST 10
 
-struct customer *cs[MAX_N_CUSTOMERS + 2];
+struct customer *cs[MAX_N_CUSTOMERS_TEST + 2];
 
 #define randint (int)pseudo_random_in_range
 
@@ -95,7 +95,7 @@ ejections_random_route(int n_tests)
 	memory_init();
 	fiber_init(fiber_c_invoke);
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *route = route_new();
 		struct customer *w;
 		int j = 0;

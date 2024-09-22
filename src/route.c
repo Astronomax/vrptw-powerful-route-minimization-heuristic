@@ -1,7 +1,7 @@
 #include "route.h"
 
 struct route *
-route_new()
+route_new(void)
 {
 	struct route *r = malloc(sizeof(*r)); //TODO: use mempool
 	rlist_create(&r->list);

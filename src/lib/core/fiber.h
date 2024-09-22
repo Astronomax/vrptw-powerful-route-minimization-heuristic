@@ -210,6 +210,8 @@ struct fiber {
 	void *stack;
 	/** Coro stack size. */
 	size_t stack_size;
+	/* A garbage-collected memory pool. */
+	struct region gc;
 	/**
 	 * The fiber which should be scheduled when
 	 * this fiber yields.
@@ -309,6 +311,9 @@ cord_collect_garbage(struct cord *cord);
 
 void
 fiber_init(int (*fiber_invoke)(fiber_func f, va_list ap));
+
+void
+fiber_gc(void);
 
 void
 fiber_call(struct fiber *callee);

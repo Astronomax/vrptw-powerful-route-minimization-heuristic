@@ -9,7 +9,7 @@
 #include "modification.h"
 #include "problem.h"
 
-#define MAX_N_CUSTOMERS 100
+#define MAX_N_CUSTOMERS_TEST 100
 
 #define modify(modification_type, v, w) do {			\
         struct modification m = {modification_type, (v), (w)};	\
@@ -17,7 +17,7 @@
         modification_apply(m);					\
 } while(0)
 
-struct customer *cs[MAX_N_CUSTOMERS + 2];
+struct customer *cs[MAX_N_CUSTOMERS_TEST + 2];
 
 #define randint (int)pseudo_random_in_range
 
@@ -25,7 +25,7 @@ void
 random_insertions(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *route = route_new();
 		int route_len = randint(1, p.n_customers / 2);
 		struct customer *w;
@@ -56,7 +56,7 @@ void
 random_ejections(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *route = route_new();
 		struct customer *v;
 		int j = 0;
@@ -79,7 +79,7 @@ void
 random_replacements(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *route = route_new();
 		int route_len = randint(1, p.n_customers / 2);
 		struct customer *w;
@@ -105,7 +105,7 @@ void
 random_two_opts(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *v_route = route_new();
 		struct route *w_route = route_new();
 		int v_route_len = randint(1, p.n_customers / 2);
@@ -149,7 +149,7 @@ void
 random_out_relocations(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *v_route = route_new();
 		struct route *w_route = route_new();
 		/**
@@ -190,7 +190,7 @@ void
 random_inter_route_exchanges(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *v_route = route_new();
 		struct route *w_route = route_new();
 		int v_route_len = randint(1, p.n_customers / 2);
@@ -219,7 +219,7 @@ void
 random_intra_route_exchanges(int n_tests)
 {
 	for (int i = 0; i < n_tests; i++) {
-		generate_random_problem(MAX_N_CUSTOMERS);
+		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 		struct route *route = route_new();
 		struct customer *w;
 		int j = 0;
