@@ -4,6 +4,12 @@
 #include "small/rlist.h"
 #include <stdbool.h>
 
+/**
+ * Based on article "A penalty-based edge assembly memetic algorithm for the
+ * vehicle routing problem with time windows" Yuichi Nagata, Olli Bräysy,
+ * Wout Dullaert
+ */
+
 #define tw_penalty_attr \
     int idx;            \
     double a;		\
