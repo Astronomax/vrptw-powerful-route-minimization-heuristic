@@ -196,6 +196,23 @@ fiber_get_ctx(struct fiber *f)
 	return f->f_arg;
 }
 
+void
+fiber_cancel(struct fiber *f)
+{
+	if (fiber_is_dead(f)) {
+		panic("Cancel of a finished and already "
+			  "recycled fiber");
+	}
+
+	f->flags |= FIBER_IS_CANCELLED;
+}
+
+bool
+fiber_is_cancelled(void)
+{
+	return fiber()->flags & FIBER_IS_CANCELLED;
+}
+
 /**
  * Implementation of `fiber_yield()` and `fiber_yield_final()`.
  * `will_switch_back` argument is used only by ASAN.
@@ -252,6 +269,18 @@ fiber_recycle(struct fiber *fiber)
 	}
 }
 
+void
+fiber_check_gc(void)
+{
+	struct fiber *fiber = fiber();
+
+	assert(region_used(&fiber->gc) >= 0);
+	if (region_used(&fiber->gc) == 0)
+		return;
+
+	panic("Fiber gc leak is found. ");
+}
+
 static void
 fiber_loop(MAYBE_UNUSED void *data)
 {
@@ -260,11 +289,13 @@ fiber_loop(MAYBE_UNUSED void *data)
 
 		assert(fiber != NULL && fiber->f != NULL);
 		fiber->f_ret = fiber_invoke(fiber->f, fiber->f_data);
+		fiber_check_gc();
 		if (fiber->f_ret != 0) {
 			struct error *e = diag_last_error(&fiber->diag);
 			/* diag must not be empty on error */
-			assert(e != NULL);
-			error_log(e);
+			assert(e != NULL || fiber->flags & FIBER_IS_CANCELLED);
+			if (!(fiber->flags & FIBER_IS_CANCELLED))
+				error_log(e);
 			diag_clear(&fiber()->diag);
 		} else {
 			/*
@@ -405,7 +436,7 @@ fiber_new_ex(const struct fiber_attr *fiber_attr, fiber_func f)
 				 "fiber pool", "fiber");
 			return NULL;
 		}
-		memset(fiber, 0, sizeof(struct fiber));;
+		memset(fiber, 0, sizeof(struct fiber));
 
 		if (fiber_stack_create(fiber, fiber_attr, &cord()->slabc)) {
 			mempool_free(&cord->fiber_mempool, fiber);
@@ -456,8 +487,7 @@ fiber_destroy(struct cord *cord, struct fiber *f)
 	TRASH(f);
 }
 
-/** Free all fiber's resources and the fiber itself. */
-static void
+void
 fiber_delete(struct cord *cord, struct fiber *f)
 {
 	assert(f != &cord->sched);

@@ -47,6 +47,11 @@ extern "C" {
 
 enum {
 	/**
+	 * Indicates that a fiber has been requested to end
+	 * prematurely.
+	 */
+	FIBER_IS_CANCELLED	= 1 << 0,
+	/**
 	 * This flag is set when fiber function ends and before
 	 * the fiber is recycled.
 	 */
@@ -123,6 +128,10 @@ typedef int (*fiber_func)(va_list);
 struct fiber *
 fiber_new(fiber_func f);
 
+/** Free all fiber's resources and the fiber itself. */
+void
+fiber_delete(struct cord *cord, struct fiber *f);
+
 /**
  * Create a new fiber with defined attributes.
  *
@@ -185,6 +194,29 @@ fiber_set_ctx(struct fiber *f, void *f_arg);
  */
 void *
 fiber_get_ctx(struct fiber *f);
+
+/**
+ * Cancel the subject fiber.
+ *
+ * Cancellation is asynchronous. Use fiber_join() to wait for the cancellation
+ * to complete.
+ *
+ * After fiber_cancel() is called, the fiber may or may not check whether it
+ * was cancelled. If the fiber does not check it, it cannot ever be cancelled.
+ * However, as long as most of the cooperative code calls fiber_testcancel(),
+ * most of the fibers are cancellable.
+ *
+ * \param f fiber to be cancelled
+ */
+void
+fiber_cancel(struct fiber *f);
+
+/**
+ * Check current fiber for cancellation (it must be checked
+ * manually).
+ */
+bool
+fiber_is_cancelled(void);
 
 /**
  * Fiber attribute container

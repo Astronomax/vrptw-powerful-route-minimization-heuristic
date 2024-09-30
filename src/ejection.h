@@ -3,8 +3,13 @@
 
 #include <stdarg.h>
 
+/**
+ * Based on article "A powerful route minimization heuristic for the vehicle
+ * routing problem with time windows" Yuichi Nagata, Olli Bräysy
+ * (3.3. Finding the best insertion–ejection combination)
+ */
+
 #define feasible_ejections_attr	\
-	int64_t p;			\
 	/**
 	 * We don't want the customer::a calculated in tw_init_penalty to break
 	 * while iterating through feasible ejections.
