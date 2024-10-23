@@ -1,8 +1,14 @@
 #include "customer.h"
 
+//int customers_count = 0;
+
 struct customer *
 customer_dup(struct customer *c)
 {
+	//++customers_count;
+	//printf("customers_count: %d\n", customers_count);
+	//fflush(stdout);
+
 	struct customer *dup = xmalloc(sizeof(*c)); //TODO: use mempool
 	dup->id = c->id;
 	dup->x = c->x;
@@ -25,6 +31,11 @@ customer_dup(struct customer *c)
 }
 
 void
-customer_delete(struct customer *c) {
+customer_delete(struct customer *c)
+{
+	//--customers_count;
+	//printf("customers_count: %d\n", customers_count);
+	//fflush(stdout);
+
 	free(c); //TODO: return back to mempool
 }

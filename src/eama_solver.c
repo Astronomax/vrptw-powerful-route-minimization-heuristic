@@ -173,9 +173,9 @@ insert_eject(struct solution *s)
 
 	int64_t p_best = INT64_MAX;
 	struct modification opt_insertion = modification_new(INSERT, NULL, s->w);
-	struct rlist ejection, opt_ejection;
-	rlist_create(&ejection);
-	rlist_create(&opt_ejection);
+	RLIST_HEAD(ejection);
+	RLIST_HEAD(opt_ejection);
+
 	for (int i = 0; i < s->n_routes; i++) {
 		struct route *v_route = s->routes[i];
 		struct modification m = route_find_optimal_insertion(
@@ -254,7 +254,8 @@ delete_route(struct solution *s, clock_t deadline)
 	solution_check_missed_customers(s);
 
 	while (!rlist_empty(&s->ejection_pool)) {
-		if (clock() >= deadline)
+		/** This will only be executed once during the entire execution time */
+		if (unlikely(clock() >= deadline))
 			goto fail;
 
 		if (options.log_level == LOGLEVEL_VERBOSE) {

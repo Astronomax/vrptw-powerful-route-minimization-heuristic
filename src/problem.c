@@ -10,6 +10,15 @@ problem_customers_dup(struct rlist *list)
 		rlist_add_tail_entry(list, customer_dup(c), in_route);
 }
 
+void
+problem_destroy(void)
+{
+	customer_delete(p.depot);
+	struct customer *c, *tmp;
+	rlist_foreach_entry_safe(c, &p.customers, in_route, tmp)
+		customer_delete(c);
+}
+
 int
 problem_routes_straight_lower_bound(void)
 {

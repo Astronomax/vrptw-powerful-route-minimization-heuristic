@@ -22,6 +22,9 @@ extern "C" {
 void
 problem_customers_dup(struct rlist *list);
 
+void
+problem_destroy(void);
+
 int
 problem_routes_straight_lower_bound(void);
 

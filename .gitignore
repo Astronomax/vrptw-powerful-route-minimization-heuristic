@@ -5,6 +5,8 @@ debug-build
 release-build
 .idea
 GehringHomberger1000
+GehringHomberger200
+Solomon100
 *.sol
 
 # Prerequisites

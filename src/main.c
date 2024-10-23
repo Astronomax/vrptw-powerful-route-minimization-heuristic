@@ -23,6 +23,7 @@ main(int argc, const char *argv[])
 	solution_check_missed_customers(s);
 	solution_encode(s, options.solution_file);
 	solution_delete(s);
+	problem_destroy();
 
 	memory_free();
 	return 0;

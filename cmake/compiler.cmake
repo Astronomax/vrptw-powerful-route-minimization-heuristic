@@ -8,10 +8,10 @@ endif()
 #
 # Perform build type specific configuration.
 #
-#check_c_compiler_flag("-ggdb" CC_HAS_GGDB)
-#if (CC_HAS_GGDB)
+check_c_compiler_flag("-ggdb" CC_HAS_GGDB)
+if (CC_HAS_GGDB)
     set (CC_DEBUG_OPT "-ggdb")
-#endif()
+endif()
 
 set (CMAKE_C_FLAGS_DEBUG
         "${CMAKE_C_FLAGS_DEBUG} ${CC_DEBUG_OPT} -O0 -fsanitize=undefined")

@@ -36,7 +36,7 @@ route_check(struct route *r)
 }
 
 #define route_foreach_from(c, from)  \
-        for (c = from; !rlist_entry_is_head(c, &c->route->list, in_route); \
+        for (c = from; !rlist_entry_is_head(c, &from->route->list, in_route); \
         c = rlist_next_entry(c, in_route))
 
 #define depot_head(r) rlist_first_entry(&r->list, struct customer, in_route)
