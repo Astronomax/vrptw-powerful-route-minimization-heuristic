@@ -9,6 +9,7 @@
 #include "core/random.h"
 #include "core/exception.h"
 
+#include <vector>
 #include <algorithm>
 
 struct solution_meta {
@@ -173,6 +174,8 @@ modification_neighbourhood_data_init(
 	data->args.n_near = va_arg(ap, int);
 	data->args.m = va_arg(ap, modification *);
 
+	data->out_relocate_current.w = nullptr;
+	data->out_relocate_current.r = nullptr;
 	/**
 	 * To diversify the search a little, we consider the vertices
 	 * of the route in random order.
@@ -185,41 +188,46 @@ modification_neighbourhood_data_init(
 }
 
 void
-modification_neighbourhood_data_destroy(
-	modification_neighbourhood_data *data)
+intra_route_out_relocate_data_create(
+	intra_route_out_relocate_data *data,
+	customer *w)
 {
-	if (data->out_relocate_current.r != nullptr) {
-		route_delete(data->out_relocate_current.r);
-		data->out_relocate_current.r = nullptr;
+	assert(w->id != 0);
+	/** WARNING: ALLOCATION! */
+	data->r = route_dup(w->route);
+	customer *v;
+	route_foreach(v, data->r)
+		data->id_to_customer[v->id] = v;
+	data->w = data->id_to_customer[w->id];
+	auto m = modification_new(EJECT, data->w, nullptr);
+	assert(modification_applicable(m));
+	data->tw_penalty_delta = tw_penalty_get_eject_delta(data->w);
+	modification_apply(m);
+}
+
+void
+intra_route_out_relocate_data_destroy(intra_route_out_relocate_data *data)
+{
+	if (data->r != nullptr) {
+		route_delete(data->r);
+		data->r = nullptr;
+	}
+	if (data->w != nullptr) {
+		customer_delete(data->w);
+		data->w = nullptr;
 	}
 }
 
 void
-intra_route_out_relocate_data_init(
-	modification_neighbourhood_data *data,
-	customer *w)
+modification_neighbourhood_data_destroy(modification_neighbourhood_data *data)
 {
-	assert(w->id != 0);
-	intra_route_out_relocate_data *d =
-		&data->out_relocate_current;
-	if (d->r != nullptr)
-		route_delete(d->r);
-	/** WARNING: ALLOCATION! */
-	d->r = route_dup(w->route);
-	customer *v;
-	route_foreach(v, d->r)
-		d->id_to_customer[v->id] = v;
-	d->w = d->id_to_customer[w->id];
-	modification m = modification_new(EJECT, d->w, nullptr);
-	assert(modification_applicable(m));
-	d->tw_penalty_delta = tw_penalty_get_eject_delta(d->w);
-	modification_apply(m);
+	intra_route_out_relocate_data_destroy(&data->out_relocate_current);
 }
 
 void
 solution_global_init()
 {
-	if (!solution_global_initialized) {
+	if (unlikely(!solution_global_initialized)) {
 		init_neighbours_sorted();
 		solution_global_initialized = true;
 	}
@@ -259,7 +267,10 @@ solution_modification_neighbourhood_f(va_list ap)
 		customer *w = data->permutation[j];
 		if (w->id != 0) {
 			/** prepare for intra-route out-relocate */
-			intra_route_out_relocate_data_init(data, w);
+			intra_route_out_relocate_data_destroy(
+				&data->out_relocate_current);
+			intra_route_out_relocate_data_create(
+				&data->out_relocate_current, w);
 			/**
 			 * here we could only consider out-relocate, but to
 			 * simplify the code we check all types of
@@ -303,11 +314,29 @@ solution_meta_delete(solution_meta *meta)
 }
 
 void
+solution_print_debug(solution *s)
+{
+	printf("s->w: %p\n", s->w);
+	printf("s->ejection_pool: ");
+	struct customer *c;
+	rlist_foreach_entry(c, &s->ejection_pool, in_eject)
+		printf("%p, ", c);
+	printf("\n");
+	printf("s->n_routes: %d\n", s->n_routes);
+	for (int i = 0; i < s->n_routes; i++) {
+		rlist_foreach_entry(c, &s->routes[i]->list, in_route)
+			printf("%p, ", c);
+		printf("\n");
+	}
+	fflush(stdout);
+}
+
+void
 solution_print(solution *s)
 {
 	for (int i = 0; i < s->n_routes; i++) {
 		customer *c;
-		rlist_foreach_entry(c, &s->routes[i]->list, in_route)
+		route_foreach(c, s->routes[i])
 			printf("%d ", c->id);
 		printf("\n");
 	}
@@ -322,8 +351,7 @@ solution_default(void)
 
 	s->w = nullptr;
 
-	rlist problem_customers{};
-	rlist_create(&problem_customers);
+	RLIST_HEAD(problem_customers);
 	problem_customers_dup(&problem_customers);
 	s->meta = solution_meta_new(&problem_customers);
 	assert(rlist_empty(&problem_customers));
@@ -349,8 +377,7 @@ solution_dup(solution *s)
 	auto *dup = (solution *)xmalloc(sizeof(solution) +
 				       sizeof(struct route *) * p.n_customers);
 
-	rlist problem_customers{};
-	rlist_create(&problem_customers);
+	RLIST_HEAD(problem_customers);
 	problem_customers_dup(&problem_customers);
 
 	dup->meta = solution_meta_new(&problem_customers);
@@ -367,7 +394,7 @@ solution_dup(solution *s)
 	dup->n_routes = s->n_routes;
 	for (int i = 0; i < dup->n_routes; i++) {
 		route *r = route_new();
-		rlist_foreach_entry(c, &s->routes[i]->list, in_route) {
+		route_foreach(c, s->routes[i]) {
 			auto c_dup = (c->id == 0) ? customer_dup(c) :
 				dup->meta->idx[c->id];
 			c_dup->route = r;
@@ -383,13 +410,14 @@ solution_dup(solution *s)
 void
 solution_move(solution *dst, solution *src)
 {
+	solution_check_missed_customers(dst);
 	SWAP(dst->w, src->w);
 	SWAP(dst->meta, src->meta);
-	rlist_create(&dst->ejection_pool);
-	rlist_splice(&dst->ejection_pool, &src->ejection_pool);
+	rlist_swap(&dst->ejection_pool, &src->ejection_pool);
 	for (int i = 0; i < MAX(dst->n_routes, src->n_routes); i++)
 		SWAP(dst->routes[i], src->routes[i]);
 	SWAP(dst->n_routes, src->n_routes);
+	solution_check_missed_customers(src);
 	solution_delete(src);
 }
 
@@ -399,7 +427,8 @@ solution_delete(solution *s)
 	solution_meta_delete(s->meta);
 	free(s->w);
 	struct customer *c, *tmp;
-	rlist_foreach_entry_safe(c, &s->ejection_pool, in_eject, tmp) customer_delete(c);
+	rlist_foreach_entry_safe(c, &s->ejection_pool, in_eject, tmp)
+		customer_delete(c);
 	for (int i = 0; i < s->n_routes; i++)
 		route_delete(s->routes[i]);
 	free(s);

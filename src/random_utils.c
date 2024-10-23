@@ -1,5 +1,6 @@
 #include "random_utils.h"
-#include "utils.h"
+
+#include "trivia/util.h"
 
 void
 random_subset(struct customer **arr, int n, int k)

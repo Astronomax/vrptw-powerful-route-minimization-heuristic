@@ -38,15 +38,50 @@
 #include "memory.h"
 #include "tt_static.h"
 
+#include <valgrind/memcheck.h>
+
 static int (*fiber_invoke)(fiber_func f, va_list ap);
+
+#if ENABLE_ASAN
+#include <sanitizer/asan_interface.h>
+
+#define ASAN_START_SWITCH_FIBER(fake_stack_save, will_switch_back, bottom,     \
+				size)					       \
+	/*								       \
+	 * When leaving a fiber definitely, NULL must be passed as the first   \
+	 * argument so that the fake stack is destroyed.		       \
+	 */								       \
+	void *fake_stack_save = NULL;					       \
+	__sanitizer_start_switch_fiber((will_switch_back) ? &fake_stack_save   \
+							  : NULL,	       \
+                                       (bottom), (size))
+#if ASAN_INTERFACE_OLD
+#define ASAN_FINISH_SWITCH_FIBER(fake_stack_save) \
+	__sanitizer_finish_switch_fiber(fake_stack_save)
+#else
+#define ASAN_FINISH_SWITCH_FIBER(fake_stack_save) \
+	__sanitizer_finish_switch_fiber(fake_stack_save, NULL, NULL)
+#endif
+
+#else
+#define ASAN_START_SWITCH_FIBER(fake_stack_save, will_switch_back, bottom, size)
+#define ASAN_FINISH_SWITCH_FIBER(fake_stack_save)
+#endif
+
 
 static inline int
 fiber_mprotect(void *addr, size_t len, int prot)
 {
+/*
+ * If we panic then fiber stacks remain protected which cause leak sanitizer
+ * failures. Disable memory protection under ASAN.
+ */
+#ifndef ENABLE_ASAN
 	if (mprotect(addr, len, prot) != 0) {
 		diag_set(SystemError, "fiber mprotect failed");
 		return -1;
 	}
+#endif
 	return 0;
 }
 
@@ -160,7 +195,11 @@ fiber_call_impl(struct fiber *callee)
 	cord->fiber = callee;
 	callee->flags = callee->flags | FIBER_IS_RUNNING;
 
+	ASAN_START_SWITCH_FIBER(asan_state, 1,
+				callee->stack,
+				callee->stack_size);
 	coro_transfer(&caller->ctx, &callee->ctx);
+	ASAN_FINISH_SWITCH_FIBER(asan_state);
 }
 
 void
@@ -218,7 +257,7 @@ fiber_is_cancelled(void)
  * `will_switch_back` argument is used only by ASAN.
  */
 static void
-fiber_yield_impl()
+fiber_yield_impl(MAYBE_UNUSED bool will_switch_back)
 {
 	struct cord *cord = cord();
 	struct fiber *caller = cord->fiber;
@@ -233,13 +272,26 @@ fiber_yield_impl()
 	cord->fiber = callee;
 	callee->flags = callee->flags | FIBER_IS_RUNNING;
 
+	ASAN_START_SWITCH_FIBER(asan_state, will_switch_back, callee->stack,
+				callee->stack_size);
 	coro_transfer(&caller->ctx, &callee->ctx);
+	ASAN_FINISH_SWITCH_FIBER(asan_state);
 }
 
 void
 fiber_yield(void)
 {
-	fiber_yield_impl();
+	fiber_yield_impl(true);
+}
+
+/**
+ * Like `fiber_yield()`, but should be used when this is the last switch from
+ * a dead fiber to the scheduler.
+ */
+static void
+fiber_yield_final(void)
+{
+	fiber_yield_impl(false);
 }
 
 void
@@ -284,6 +336,7 @@ fiber_check_gc(void)
 static void
 fiber_loop(MAYBE_UNUSED void *data)
 {
+	ASAN_FINISH_SWITCH_FIBER(NULL);
 	for (;;) {
 		struct fiber *fiber = fiber();
 
@@ -313,8 +366,12 @@ fiber_loop(MAYBE_UNUSED void *data)
 		fiber->f = NULL;
 		/*
 		 * Give control back to the scheduler.
+		 * If the fiber is not reusable, this is its final yield.
 		 */
-		fiber_yield();
+		if (fiber_is_reusable(fiber->flags))
+			fiber_yield();
+		else
+			fiber_yield_final();
 	}
 }
 
@@ -336,6 +393,7 @@ fiber_stack_destroy(struct fiber *fiber, struct slab_cache *slabc)
 	static const int mprotect_flags = PROT_READ | PROT_WRITE;
 
 	if (fiber->stack != NULL) {
+		VALGRIND_STACK_DEREGISTER(fiber->stack_id);
 		void *guard;
 		if (stack_direction < 0)
 			guard = page_align_down(fiber->stack - page_size);
@@ -404,6 +462,10 @@ fiber_stack_create(struct fiber *fiber, const struct fiber_attr *fiber_attr,
 		fiber->stack = fiber->stack_slab + slab_sizeof();
 		fiber->stack_size = guard - fiber->stack;
 	}
+
+	fiber->stack_id = VALGRIND_STACK_REGISTER(fiber->stack,
+						  (char *)fiber->stack +
+						  fiber->stack_size);
 
 	if (fiber_mprotect(guard, page_size, PROT_NONE)) {
 		/*
@@ -519,6 +581,7 @@ cord_create(struct cord *cord)
 	cord_ptr = cord;
 	slab_cache_set_thread(&cord()->slabc);
 
+	cord->id = pthread_self();
 	slab_cache_create(&cord->slabc, &runtime);
 	mempool_create(&cord->fiber_mempool, &cord->slabc,
 		       sizeof(struct fiber));
@@ -532,8 +595,14 @@ cord_create(struct cord *cord)
 	cord->fiber = &cord->sched;
 	cord->sched.flags = FIBER_IS_RUNNING;
 
+#if ENABLE_ASAN
+	/* Record stack extents */
+	tt_pthread_attr_getstack(cord->id, &cord->sched.stack,
+				 &cord->sched.stack_size);
+#else
 	cord->sched.stack = NULL;
 	cord->sched.stack_size = 0;
+#endif
 }
 
 void
@@ -560,6 +629,8 @@ cord_add_garbage(struct cord *cord, struct fiber *f)
 void
 cord_destroy(struct cord *cord)
 {
+	assert(cord->id == 0 || pthread_equal(cord->id, pthread_self()));
+	cord->id = 0;
 	slab_cache_set_thread(&cord->slabc);
 	fiber_delete_all(cord);
 	cord->fiber = NULL;

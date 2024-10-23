@@ -2,7 +2,8 @@
 #define EAMA_ROUTES_MINIMIZATION_HEURISTIC_RANDOM_RLIST_EXTRA_H
 
 #include "small/rlist.h"
-#include "utils.h"
+
+#include "trivia/util.h"
 
 void ALWAYS_INLINE
 rlist_swap_items(struct rlist *lhs, struct rlist *rhs)

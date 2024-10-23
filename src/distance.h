@@ -6,7 +6,8 @@
 	double dist_sf
 
 #include "customer.h"
-#include "utils.h"
+
+#include "trivia/util.h"
 
 struct route;
 

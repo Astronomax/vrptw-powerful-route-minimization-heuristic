@@ -3,7 +3,7 @@
 #include <fstream>
 
 #include "dist.h"
-#include "utils.h"
+#include "trivia/util.h"
 
 void
 solution_encode(solution *s, const char *file)

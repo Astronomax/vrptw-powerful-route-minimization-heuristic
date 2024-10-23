@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 #include "small/static.h"
-#include "../../utils.h"
+#include "trivia/util.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>

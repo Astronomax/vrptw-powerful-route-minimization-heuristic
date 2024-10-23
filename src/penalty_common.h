@@ -4,7 +4,7 @@
 #define penalty_common_modification_apply_straight_delta(prefix)		\
 double										\
 prefix##_penalty_modification_apply_straight_delta(struct modification m)	\
-{	assert(false);									\
+{	unreachable();								\
 	if (m.v->route == m.w->route) {						\
 		struct route *r = route_dup(m.v->route);			\
 		m.v = route_find_customer_by_id(r, m.v->id);			\
@@ -14,7 +14,7 @@ prefix##_penalty_modification_apply_straight_delta(struct modification m)	\
 		modification_apply(m);						\
 		prefix##_penalty_init(r);/** TODO: update only what is needed */\
 		double p_delta = prefix##_penalty_get_penalty(r) - p_before;	\
-		route_delete(r);							\
+		route_delete(r);						\
 		return p_delta;							\
 	} else {								\
 		struct route *v_route = route_dup(m.v->route);			\

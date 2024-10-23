@@ -63,6 +63,7 @@ route_delete(struct route *r)
 		rlist_del_entry(c, in_route);
 		customer_delete(c);
 	}
+	free(r);
 }
 
 struct customer *

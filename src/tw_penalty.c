@@ -8,7 +8,8 @@
 #include "penalty_common.h"
 #include "problem.h"
 #include "route.h"
-#include "utils.h"
+
+#include "trivia/util.h"
 
 void
 tw_penalty_init(struct route *r)

@@ -25,6 +25,7 @@ customer_dup(struct customer *c)
 }
 
 void
-customer_delete(struct customer *c) {
+customer_delete(struct customer *c)
+{
 	free(c); //TODO: return back to mempool
 }

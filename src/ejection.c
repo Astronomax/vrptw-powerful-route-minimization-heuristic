@@ -17,16 +17,14 @@ feasible_ejections_f(va_list ap)
 	if (k_max <= 0)
 		return 0;
 
-	struct rlist ne, s;
-	rlist_create(&ne);
-	rlist_create(&s);
+	RLIST_HEAD(ne);
+	RLIST_HEAD(s);
 	struct customer *ne_last = depot_head(r);
 	rlist_add_tail_entry(&ne, ne_last, in_eject);
 	ne_last->a_temp = ne_last->a;
+
 	struct customer *tmp;
-	for(tmp = rlist_next_entry(ne_last, in_route);
-	    !rlist_entry_is_head(tmp, &r->list, in_route);
-	    tmp = rlist_next_entry(tmp, in_route))
+	route_foreach_from(tmp, rlist_next_entry(ne_last, in_route))
 		rlist_add_tail_entry(&s, tmp, in_eject);
 
 	double total_demand;
@@ -37,9 +35,6 @@ feasible_ejections_f(va_list ap)
 	/** Will be initialized after incr_k */
 	struct customer *e_last;
 	struct customer *s_first = rlist_first_entry(&s, struct customer, in_eject);
-
-	//printf("route len: %d\n", route_len(r));
-	//fflush(stdout);
 
 	goto incr_k;
 	for(;;) {
@@ -74,7 +69,7 @@ feasible_ejections_f(va_list ap)
 				return 0;
 			}
 
-			p_sum -= ps[s_first->id];//p_sum -= s_first->p;
+			p_sum -= ps[s_first->id];
 			total_demand += s_first->demand;
 			rlist_foreach_entry_safe_reverse(ne_last, &ne, in_eject, tmp) {
 				if (ne_last->idx <= e_last->idx) break;
@@ -89,9 +84,8 @@ feasible_ejections_f(va_list ap)
 		incr_last:
 			assert(e_last == rlist_last_entry(e, struct customer, in_eject));
 			ne_last = e_last;
-			//e_last = rlist_prev_entry(e_last, in_eject);
 			rlist_move_tail_entry(&ne, ne_last, in_eject);
-			p_sum -= ps[ne_last->id];//p_sum -= ne_last->p;
+			p_sum -= ps[ne_last->id];
 			total_demand += ne_last->demand;
 			--k;
 		incr_k:
@@ -99,7 +93,7 @@ feasible_ejections_f(va_list ap)
 			e_last = s_first;
 			s_first = rlist_next_entry(s_first, in_eject);
 			rlist_move_tail_entry(e, e_last, in_eject);
-			p_sum += ps[e_last->id];//p_sum += e_last->p;
+			p_sum += ps[e_last->id];
 			total_demand -= e_last->demand;
 			++k;
 		/** update */
@@ -112,4 +106,5 @@ feasible_ejections_f(va_list ap)
 			s_first->a_temp = MIN(MAX(s_first->a_quote, s_first->e), s_first->l);
 		} while (ne_last->l < ne_last->a_quote);
 	}
+	unreachable();
 }

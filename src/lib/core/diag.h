@@ -30,7 +30,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <../../../utils.h>
+#include <trivia/util.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>

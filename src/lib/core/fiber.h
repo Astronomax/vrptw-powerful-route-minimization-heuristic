@@ -33,6 +33,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "tt_pthread.h"
 #include "cord_on_demand.h"
 #include "diag.h"
 #include "small/mempool.h"
@@ -242,6 +243,8 @@ struct fiber {
 	void *stack;
 	/** Coro stack size. */
 	size_t stack_size;
+	/** Valgrind stack id. */
+	unsigned int stack_id;
 	/* A garbage-collected memory pool. */
 	struct region gc;
 	/**
@@ -285,6 +288,7 @@ struct fiber {
 struct cord {
 	/** The fiber that is currently being executed. */
 	struct fiber *fiber;
+    	pthread_t id;
 	/** All fibers */
 	struct rlist alive;
 	/** A cache of dead fibers for reuse */

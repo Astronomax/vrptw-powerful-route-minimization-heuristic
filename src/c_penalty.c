@@ -6,7 +6,8 @@
 #include "penalty_common.h"
 #include "problem.h"
 #include "route.h"
-#include "utils.h"
+
+#include "trivia/util.h"
 
 void
 c_penalty_init(struct route *r)
@@ -108,7 +109,7 @@ c_penalty_two_opt_penalty_delta(struct customer *v, struct customer *w)
 double
 c_penalty_out_relocate_penalty_delta(struct customer *v, struct customer *w)
 {
-	/** This will probably never be called */
+	/** This branch will probably never be executed */
 	if (unlikely(v->route == w->route))
 		return 0.f;
 	else {
@@ -120,7 +121,7 @@ c_penalty_out_relocate_penalty_delta(struct customer *v, struct customer *w)
 double
 c_penalty_exchange_penalty_delta(struct customer *v, struct customer *w)
 {
-	/** This will probably never be called */
+	/** This branch will probably never be executed */
 	if (unlikely(v->route == w->route))
 		return 0.f;
 	else {

@@ -114,9 +114,8 @@ ejections_random_route(int n_tests)
 
 		int64_t p_best_act = INT64_MAX,
 			p_best_exp = INT64_MAX;
-		struct rlist ejection_act, ejection_idx_exp;
-		rlist_create(&ejection_act);
-		rlist_create(&ejection_idx_exp);
+		RLIST_HEAD(ejection_act);
+		RLIST_HEAD(ejection_idx_exp);
 
 		struct fiber *f1 = fiber_new(iterate_over_subsets_f),
 			*f2 = fiber_new(feasible_ejections_f);
