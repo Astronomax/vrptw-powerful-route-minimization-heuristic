@@ -112,16 +112,15 @@ ejections_random_route(int n_tests)
 		}
 		route_init(route, &cs[0], p.n_customers);
 
-		int64_t p_best_act = INT64_MAX,
-			p_best_exp = INT64_MAX;
-		RLIST_HEAD(ejection_act);
+		int64_t p_best_exp = INT64_MAX;
+		//RLIST_HEAD(ejection_act);
 		RLIST_HEAD(ejection_idx_exp);
 
-		struct fiber *f1 = fiber_new(iterate_over_subsets_f),
-			*f2 = fiber_new(feasible_ejections_f);
+		struct fiber *f1 = fiber_new(iterate_over_subsets_f);
+		struct ejections_iterator it;
 
 		fiber_start(f1, p.n_customers, 5, &ejection_idx_exp);
-		fiber_start(f2, route, 5, &ps[0], &ejection_act, &p_best_act);
+		ejections_iterator_create(&it, route, &ps[0], 5, p_best_exp);
 
 		rlist_persistent_history history;
 		rlist_create(&history);
@@ -143,21 +142,21 @@ ejections_random_route(int n_tests)
 					p_sum += ps[cs[idx->idx]->id];
 				if (p_sum < p_best_exp) {
 					p_best_exp = p_sum;
-					assert(p_best_act == p_best_exp);
 
-					w = rlist_first_entry(&ejection_act, struct customer, in_eject);
+					assert(ejections_iterator_next(&it));
+					assert(it.p_best == p_best_exp);
+
+					w = rlist_first_entry(&it.e, struct customer, in_eject);
 					rlist_foreach_entry(idx, &ejection_idx_exp, in_list) {
 						assert(w->idx == idx->idx + 1);
 						w = rlist_next_entry(w, in_eject);
 					}
-					assert(rlist_entry_is_head(w, &ejection_act, in_eject));
-
-					assert(!fiber_is_dead(f2));
-					fiber_call(f2);
+					assert(rlist_entry_is_head(w, &it.e, in_eject));
 				}
 			}
 			fiber_call(f1);
 		}
+		assert(!ejections_iterator_next(&it));
 	}
 	memory_free();
 }

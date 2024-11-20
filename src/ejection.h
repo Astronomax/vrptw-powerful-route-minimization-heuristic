@@ -2,6 +2,9 @@
 #define EAMA_ROUTES_MINIMIZATION_HEURISTIC_INSERT_EJECT_H
 
 #include <stdarg.h>
+#include <stdbool.h>
+#include <bits/stdint-intn.h>
+#include "small/rlist.h"
 
 /**
  * Based on article "A powerful route minimization heuristic for the vehicle
@@ -17,6 +20,27 @@
 	double a_temp;			\
 	double a_quote
 
+struct ejections_iterator {
+	struct route *r;
+	const int64_t *ps;
+	int k_max;
+	int64_t p_best;
+	bool has_next_value;
+	struct rlist e;
+	struct rlist ne;
+	struct rlist s;
+	struct customer *ne_last;
+	double total_demand;
+	int64_t p_sum;
+	int k;
+	struct customer *e_last;
+	struct customer *s_first;
+};
+
+void
+ejections_iterator_create(struct ejections_iterator *it,
+	struct route *r, const int64_t *ps, int k_max, int64_t p_best);
+
 /**
  * @brief Iterate over feasible ejections (a subsets of route customers such
  * that if they were ejected, this route would not violate the constraints, i.e.
@@ -30,7 +54,7 @@
  * @param e		ejection (must be initially passed empty)
  * @param p_best	current minimum sum of p
  */
-int
-feasible_ejections_f(va_list ap);
+bool
+ejections_iterator_next(struct ejections_iterator *it);
 
 #endif //EAMA_ROUTES_MINIMIZATION_HEURISTIC_INSERT_EJECT_H
