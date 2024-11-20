@@ -288,7 +288,7 @@ struct fiber {
 struct cord {
 	/** The fiber that is currently being executed. */
 	struct fiber *fiber;
-    	pthread_t id;
+	pthread_t id;
 	/** All fibers */
 	struct rlist alive;
 	/** A cache of dead fibers for reuse */

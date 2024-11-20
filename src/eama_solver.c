@@ -173,7 +173,8 @@ insert_eject(struct solution *s)
 
 	int64_t p_best = INT64_MAX;
 	struct modification opt_insertion = modification_new(INSERT, NULL, s->w);
-	RLIST_HEAD(ejection);
+	//RLIST_HEAD(ejection);
+	struct ejections_iterator it;
 	RLIST_HEAD(opt_ejection);
 
 	for (int i = 0; i < s->n_routes; i++) {
@@ -186,17 +187,17 @@ insert_eject(struct solution *s)
 		assert(!is_ejected(s->w));
 		assert(!route_feasible(v_route));
 
-		struct fiber *f = fiber_new(feasible_ejections_f);
-		fiber_start(f, v_route, options.k_max, eama_solver.p, &ejection, &p_best);
-		while(!fiber_is_dead(f)) {
+		ejections_iterator_create(&it, v_route, eama_solver.p, options.k_max, p_best);
+		while(ejections_iterator_next(&it)) {
 			opt_insertion = m;
 			rlist_del(&opt_ejection);
 			struct customer *c;
-			rlist_foreach_entry(c, &ejection, in_eject)
+			rlist_foreach_entry(c, &it.e, in_eject)
 				rlist_add_tail_entry(&opt_ejection, c, in_opt_eject);
-			fiber_call(f);
+			assert(it.p_sum < p_best);
+			p_best = it.p_sum;
 		}
-		assert(rlist_empty(&ejection));
+		assert(rlist_empty(&it.e));
 		m = modification_new(EJECT, s->w, NULL);
 		assert(modification_applicable(m));
 		modification_apply(m);
