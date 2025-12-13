@@ -166,7 +166,7 @@ parse_option(void)
 				char *p_end;
 				options.lower_bound = (int)strtol(lower_bound_string, &p_end, 10);
 				if (p_end != lower_bound_string + strlen(lower_bound_string))
-					panic("error: --k_max needs a valid integer.");
+					panic("error: --lower_bound needs a valid integer.");
 				return;
 			}
 		default:
@@ -194,7 +194,7 @@ parse_arguments(int argc, const char *argv[])
 	options.n_near = 100;
 	options.k_max = 5;
 	options.t_max = (clock_t)365 * 86400 * 100;
-	options.i_rand = 100000;
+	options.i_rand = 1000;
 	options.lower_bound = 0;
 
 	for (arg_index = 3; arg_index < arg_count; arg_index++)

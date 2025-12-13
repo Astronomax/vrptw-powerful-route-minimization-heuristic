@@ -48,7 +48,7 @@ $ mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo && make 
 Then you can run the utility:
 ```console
 $ ./build/routes --help
-Usage: ./debug-build/routes <file1> <file2> [<options>]
+Usage: ./build/routes <file1> <file2> [<options>]
 file1 - problem statement, file2 - where to output the solution
 
 Options:
