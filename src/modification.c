@@ -33,6 +33,9 @@ modification_applicable(struct modification m)
 	case OUT_RELOCATE:
 		if (w_route == NULL)
 			return false;
+		struct customer *prev = rlist_prev_entry(m.v, in_route);
+		if (prev == m.w)
+			return false;
 	case INSERT:
 		if (m.w->id == 0)
 			return false;
@@ -90,8 +93,12 @@ modification_apply(struct modification m)
 	case OUT_RELOCATE: {
 		if (m.v == m.w)
 			return;
-		rlist_move_entry(
-			rlist_prev(&m.v->in_route), m.w, in_route);
+
+		struct customer *prev = rlist_prev_entry(m.v, in_route);
+		if (prev == m.w)
+			return;
+
+		rlist_move_entry(&prev->in_route, m.w, in_route);
 		m.w->route = v_route;
 		break;
 	}
@@ -112,10 +119,12 @@ modification_apply(struct modification m)
 		 * This will probably never be true.
 		 * Most likely INSERT will always be used only after EJECT.
 		 */
-		if (unlikely(w_route != NULL)) {
-			route_init_penalty(w_route);
-			route_check(w_route);
-		}
+		assert(w_route == NULL);
+		//if (unlikely(w_route != NULL)) {
+		//	route_init_penalty(w_route);
+		//	route_check(w_route);
+		//}
+		rlist_create(&m.w->in_eject);
 		return;
 	}
 	case EJECT: {
@@ -123,6 +132,7 @@ modification_apply(struct modification m)
 		m.v->route = NULL;
 		route_init_penalty(v_route);
 		route_check(v_route);
+		rlist_create(&m.v->in_route);
 		return;
 	}
 	default:

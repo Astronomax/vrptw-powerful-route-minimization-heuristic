@@ -541,6 +541,7 @@ solution_eliminate_random_route(struct solution *s)
 			customer_delete(c);
 		} else {
 			c->route = nullptr;
+			rlist_create(&c->in_route);
 			rlist_add_tail_entry(&s->ejection_pool, c, in_eject);
 		}
 	}

@@ -95,12 +95,12 @@ ejections_random_route(int n_tests)
 	memory_init();
 	fiber_init(fiber_c_invoke);
 
-	int64_t ps[MAX_N_CUSTOMERS_TEST];
+	int64_t ps[MAX_N_CUSTOMERS_TEST + 1];
 
 	for (int i = 0; i < n_tests; i++) {
 		generate_random_problem(MAX_N_CUSTOMERS_TEST);
 
-		for (int j = 0; j < MAX_N_CUSTOMERS_TEST; j++)
+		for (int j = 0; j <= MAX_N_CUSTOMERS_TEST; j++)
 			ps[j] = randint(0, 5);
 
 		struct route *route = route_new();
@@ -145,12 +145,12 @@ ejections_random_route(int n_tests)
 					p_best_exp = p_sum;
 					assert(p_best_act == p_best_exp);
 
-					w = rlist_first_entry(&ejection_act, struct customer, in_eject);
+					w = rlist_first_entry(&ejection_act, struct customer, in_eject_temp);
 					rlist_foreach_entry(idx, &ejection_idx_exp, in_list) {
 						assert(w->idx == idx->idx + 1);
-						w = rlist_next_entry(w, in_eject);
+						w = rlist_next_entry(w, in_eject_temp);
 					}
-					assert(rlist_entry_is_head(w, &ejection_act, in_eject));
+					assert(rlist_entry_is_head(w, &ejection_act, in_eject_temp));
 
 					assert(!fiber_is_dead(f2));
 					fiber_call(f2);

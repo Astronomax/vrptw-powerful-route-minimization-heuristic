@@ -16,7 +16,8 @@ tw_penalty_init(struct route *r)
 	struct customer *next;
 	double a_quote;
 	struct customer *prev = depot_head(r);
-	prev->a = prev->tw_pf = 0.;
+	prev->a = prev->e;
+	prev->tw_pf = 0.;
 	prev->idx = 0;
 	for (next = rlist_next_entry(prev, in_route);
 	     !rlist_entry_is_head(next, &r->list, in_route);

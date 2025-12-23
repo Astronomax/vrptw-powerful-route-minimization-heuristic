@@ -109,6 +109,7 @@ squeeze(struct solution *s)
 					eama_solver.beta /= 0.99;
 				else
 					eama_solver.beta *= 0.99;
+				eama_solver.beta = MIN(MAX(eama_solver.beta, EPS5), 100.0);
 				if (options.log_level == LOGLEVEL_VERBOSE)
 					debug_print(tt_sprintf("beta after correction: %0.12f",
 										   eama_solver.beta), RESET);
@@ -192,7 +193,7 @@ insert_eject(struct solution *s)
 			opt_insertion = m;
 			rlist_del(&opt_ejection);
 			struct customer *c;
-			rlist_foreach_entry(c, &ejection, in_eject)
+			rlist_foreach_entry(c, &ejection, in_eject_temp)
 				rlist_add_tail_entry(&opt_ejection, c, in_opt_eject);
 			fiber_call(f);
 		}
