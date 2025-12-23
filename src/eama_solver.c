@@ -105,10 +105,10 @@ squeeze(struct solution *s)
 				debug_print("failed", RED);
 
 			if (options.beta_correction) {
-				if (solution_penalty(s, 1., -1.) < 0.)
-					eama_solver.beta /= 0.99;
-				else
+				if (solution_penalty(s, 1., -eama_solver.beta) < 0.)
 					eama_solver.beta *= 0.99;
+				else
+					eama_solver.beta /= 0.99;
 				eama_solver.beta = MIN(MAX(eama_solver.beta, EPS5), 100.0);
 				if (options.log_level == LOGLEVEL_VERBOSE)
 					debug_print(tt_sprintf("beta after correction: %0.12f",
