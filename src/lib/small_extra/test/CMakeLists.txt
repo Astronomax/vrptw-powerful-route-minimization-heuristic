@@ -5,6 +5,10 @@ include_directories("${PROJECT_SOURCE_DIR}/include")
 
 create_test(rlist_persistent ${CMAKE_CURRENT_BINARY_DIR}/rlist_persistent.test)
 
+if(DEFINED SMALL_EMBEDDED)
+    return()
+endif()
+
 if(POLICY CMP0037)
     cmake_policy(SET CMP0037 OLD) # don't blame "test" target name
 endif(POLICY CMP0037)
