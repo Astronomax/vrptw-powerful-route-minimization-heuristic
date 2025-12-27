@@ -2,7 +2,7 @@
 
 # vrptw-powerful-route-minimization-heuristic
 
-Efficient and fast implementation of the algorithm described in the following articles:
+~~Efficient and fast~~ implementation of the algorithm described in the following articles:
 * A powerful route minimization heuristic for the vehicle routing problem with time windows, Operations Research Letters, Volume 37, Issue 5, 2009,
 Pages 333-338 [[link]](https://doi.org/10.1016/j.orl.2009.04.006)
 * A penalty-based edge assembly memetic algorithm for the vehicle routing problem with time windows, Computers & Operations Research, Volume 37, Issue 4, 2010, Pages 724-737 [[link]](https://doi.org/10.1016/j.cor.2009.06.022)
@@ -27,6 +27,25 @@ Its implementation may also appear in this repository at some point, although th
 
 * [Solomon's problem sets](https://www.sintef.no/projectweb/top/vrptw/solomon-benchmark/) (25, 50, and 100 customers)
 * [Gehring & Homberger's extended benchmark](https://www.sintef.no/projectweb/top/vrptw/homberger-benchmark/) (200, 400, 600, 800, and 1000 customers)
+
+### Benchmark Results
+
+Results on Gehring & Homberger 1000-customer instances (60 test cases):
+
+| Time Limit | This Implementation | Paper Results |
+|------------|---------------------|---------------|
+| 10 minutes | 3424                | 3420          |
+| 60 minutes | 3421                | 3419          |
+| 5 hours    | 3421                | 3417          |
+
+The table shows the total number of routes across all 60 test instances. The optimal sum (if all instances reached their current best-known solution) is 3416 (see this commit date).
+
+**Instances that did not reach the best-known solution within 5 hours:**
+* `c1_10_6`: best_known=99, achieved=100
+* `c1_10_8`: best_known=92, achieved=93
+* `c2_10_3`: best_known=28, achieved=29
+* `c2_10_8`: best_known=28, achieved=29
+* `c2_10_9`: best_known=28, achieved=29
 
 ## Usage
 
