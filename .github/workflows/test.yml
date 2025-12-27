@@ -37,3 +37,41 @@ jobs:
     - name: Test
       working-directory: ${{github.workspace}}/build
       run: ctest
+
+  build-asan:
+    name: Build and test with AddressSanitizer
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Init Submodules
+      run: git submodule update --init --recursive
+
+    - name: Install clang-14
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-14 clang++-14
+
+    - name: Configure CMake with ASAN
+      env:
+        CC: /usr/bin/clang-14
+        CXX: /usr/bin/clang++-14
+      run: |
+        cmake -B debug-build-asan \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DENABLE_WERROR=ON \
+          -DENABLE_ASAN=ON \
+          -DENABLE_UB_SANITIZER=ON \
+          -DFIBER_STACK_SIZE=1280Kb \
+          -DTEST_BUILD=ON
+
+    - name: Build with ASAN
+      run: cmake --build debug-build-asan --config Debug
+
+    - name: Test with ASAN
+      env:
+        ASAN: ON
+        ASAN_OPTIONS: debug=true:heap_profile=0:detect_invalid_pointer_pairs=3:symbolize=1:detect_leaks=1:dump_instruction_bytes=1:print_suppressions=0
+      run: |
+        ./debug-build-asan/routes GehringHomberger1000/C1_10_1.TXT C1_10_1.sol --lower_bound 100 --log_level=normal
