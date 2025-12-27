@@ -46,8 +46,8 @@ solution_penalty(struct solution *s, double alpha, double beta);
 bool
 solution_feasible(struct solution *s);
 
-int
-split_by_feasibility(struct solution *s);
+//int
+//split_by_feasibility(struct solution *s);
 
 void
 solution_print(struct solution *s);

@@ -19,6 +19,7 @@ struct route {
      */
     struct rlist list;
     struct rlist in_routes;
+    int in_infeasibles_idx;
 };
 
 #define route_foreach(c, r) rlist_foreach_entry(c, &r->list, in_route)

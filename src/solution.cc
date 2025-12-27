@@ -452,6 +452,7 @@ solution_feasible(solution *s)
 	return true;
 }
 
+/*
 int
 split_by_feasibility(solution *s)
 {
@@ -464,6 +465,7 @@ split_by_feasibility(solution *s)
 	}
 	return infeasible;
 }
+*/
 
 struct modification
 solution_find_feasible_insertion(struct solution *s, struct customer *w)

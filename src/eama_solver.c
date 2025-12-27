@@ -63,12 +63,18 @@ squeeze(struct solution *s)
 
 	modification_apply(solution_find_optimal_insertion(
 		s, s->w, eama_solver.alpha, eama_solver.beta));
-	s->w = NULL;
-	solution_check_missed_customers(s);
-	assert(!solution_feasible(s));
 
-	int infeasible = split_by_feasibility(s);
-	while(infeasible > 0) {
+	solution_check_missed_customers(s);
+
+	int n_infeasibles = 1;
+	static struct route *infeasibles[MAX_N_CUSTOMERS];
+
+	assert(!route_feasible(s->w->route));
+	infeasibles[0] = s->w->route;
+	s->w->route->in_infeasibles_idx = 0;
+	s->w = NULL;
+
+	while(n_infeasibles > 0) {
 		if (options.log_level == LOGLEVEL_VERBOSE) {
 			debug_print(tt_sprintf("penalty_sum: %f",
 				solution_penalty(s, eama_solver.alpha, eama_solver.beta)), RESET);
@@ -77,8 +83,8 @@ squeeze(struct solution *s)
 			//debug_print(tt_sprintf("c_penalty_sum: %f",
 			//					   solution_penalty(s, 1., 0.)), RESET);
 		}
-		int route_idx = randint(0, infeasible - 1);
-		struct route *v_route = s->routes[route_idx];
+		int route_idx = randint(0, n_infeasibles - 1);
+		struct route *v_route = infeasibles[route_idx];
 		assert(!route_feasible(v_route));
 
 		double v_route_penalty = route_penalty(v_route, eama_solver.alpha, eama_solver.beta);
@@ -117,10 +123,42 @@ squeeze(struct solution *s)
 			solution_move(s, s_dup);
 			return -1;
 		}
+
+		static struct route *affected_routes[2];
+		affected_routes[0] = opt_modification.v->route;
+		affected_routes[1] = opt_modification.w->route;
+		for (int i = 0; i < 2; i++)
+			assert(affected_routes[i] != NULL);
+		int n_affected_routes = 1 +
+			(int)(affected_routes[0] != affected_routes[1]);
+		static bool feasibility_before[2];
+		for (int i = 0; i < n_affected_routes; i++)
+			feasibility_before[i] = route_feasible(affected_routes[i]);
+
 		solution_check_missed_customers(s);
 		modification_apply(opt_modification);
 		solution_check_missed_customers(s);
-		infeasible = split_by_feasibility(s);
+
+		static bool feasibility_after[2];
+		for (int i = 0; i < n_affected_routes; i++)
+			feasibility_after[i] = route_feasible(affected_routes[i]);
+
+		for (int i = 0; i < n_affected_routes; i++) {
+			struct route *route = affected_routes[i];
+			/* remove from infeasibles */
+			if (!feasibility_before[i] && feasibility_after[i]) {
+				assert(route->in_infeasibles_idx < n_infeasibles);
+				infeasibles[n_infeasibles - 1]->in_infeasibles_idx = route->in_infeasibles_idx;
+				SWAP(infeasibles[route->in_infeasibles_idx], infeasibles[n_infeasibles - 1]);
+				assert(n_infeasibles > 0);
+				--n_infeasibles;
+			} /* insert to infeasibles */
+			else if (feasibility_before[i] && !feasibility_after[i]) {
+				infeasibles[n_infeasibles] = route;
+				route->in_infeasibles_idx = n_infeasibles;
+				++n_infeasibles;
+			}
+		}
 	}
 	if (options.log_level == LOGLEVEL_VERBOSE)
 		debug_print("completed successfully", GREEN);
