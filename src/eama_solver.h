@@ -14,6 +14,7 @@
 struct eama_solver {
     double alpha;
     double beta;
+    /* TODO: make `p` a member of class `customer` */
     int64_t p[MAX_N_CUSTOMERS];
 };
 

@@ -50,10 +50,10 @@ create_unit_test(PREFIX c_penalty
                  LIBRARIES core unit
 )
 
-create_unit_test(PREFIX distance
-                 SOURCES distance.c ${common_sources}
-                 LIBRARIES core unit
-)
+#create_unit_test(PREFIX distance
+#                 SOURCES distance.c ${common_sources}
+#                 LIBRARIES core unit
+#)
 
 create_unit_test(PREFIX modification
                  SOURCES modification.c ${common_sources}

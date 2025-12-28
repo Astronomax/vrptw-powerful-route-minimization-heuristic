@@ -371,6 +371,7 @@ solution_default(void)
 	return s;
 }
 
+/* TODO: deprecate */
 solution *
 solution_dup(solution *s)
 {

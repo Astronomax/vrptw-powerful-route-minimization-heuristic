@@ -138,6 +138,12 @@ modification_apply(struct modification m)
 	default:
 		unreachable();
 	}
+	/*
+	 * TODO: do not iterate over all route to update penalties.
+	 * The prefix up to the first customer remained unchanged.
+	 * If the value `a` of a customer is unchanged, then the
+	 * suffix starting from this customer is also unchanged.
+	 */
 	route_init_penalty(v_route);
 	route_init_penalty(w_route);
 	route_check(v_route);

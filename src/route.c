@@ -3,7 +3,8 @@
 struct route *
 route_new(void)
 {
-	struct route *r = xmalloc(sizeof(struct route)); //TODO: use mempool
+	/* TODO: use mempool to allocate routes */
+	struct route *r = xmalloc(sizeof(struct route));
 	rlist_create(&r->list);
 	rlist_create(&r->in_routes);
 	return r;
@@ -32,10 +33,15 @@ void
 route_init_penalty(struct route *r)
 {
 	c_penalty_init(r);
-        tw_penalty_init(r);
-        distance_init(r);
+	tw_penalty_init(r);
+	/*
+	 * We don't use distance penalties yet. Enable it only for
+	 * `distance.test` unit test. Now let's simply disable this test.
+	 */
+	//distance_init(r);
 }
 
+/* TODO: deprecate */
 struct route *
 route_dup(struct route *r)
 {
@@ -43,7 +49,7 @@ route_dup(struct route *r)
 	rlist_create(&dup->list);
 	rlist_create(&dup->in_routes);
 	struct customer *c;
-	/** One mempool allocation for each customer in list */
+	/* One mempool allocation for each customer in list */
 	rlist_foreach_entry(c, &r->list, in_route) {
 		struct customer *c_dup = customer_dup(c);
 		rlist_add_tail_entry(&dup->list, c_dup, in_route);
@@ -92,6 +98,7 @@ route_penalty(struct route *r, double alpha, double beta)
 	       beta * tw_penalty_get_penalty(r);
 }
 
+/*
 int
 route_len(struct route *r)
 {
@@ -101,6 +108,7 @@ route_len(struct route *r)
 		++len;
 	return len - 2;
 }
+*/
 
 struct modification
 route_find_optimal_insertion(struct route *r, struct customer *w,

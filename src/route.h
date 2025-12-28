@@ -70,8 +70,8 @@ route_feasible(struct route *r);
 double
 route_penalty(struct route *r, double alpha, double beta);
 
-int
-route_len(struct route *r);
+//int
+//route_len(struct route *r);
 
 struct modification
 route_find_optimal_insertion(struct route *r, struct customer *w,

@@ -31,6 +31,7 @@ solution_modification_neighbourhood_f(va_list ap);
 struct solution *
 solution_default(void);
 
+/* TODO: deprecate */
 struct solution *
 solution_dup(struct solution *s);
 

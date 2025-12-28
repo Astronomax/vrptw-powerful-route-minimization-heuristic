@@ -57,6 +57,7 @@ squeeze(struct solution *s)
 	assert(s->w != NULL);
 	assert(is_ejected(s->w));
 	assert(solution_feasible(s));
+	/* TODO: don't dup solution, instead use some persistent structure */
 	struct solution *s_dup = solution_dup(s);
 	assert(solution_find_customer_by_id(s, s->w->id) == s->w);
 	assert(solution_find_customer_by_id(s_dup, s_dup->w->id) == s_dup->w);
@@ -66,6 +67,15 @@ squeeze(struct solution *s)
 
 	solution_check_missed_customers(s);
 
+	/*
+	 * We could just use a list, but then it's not clear how to choose a
+	 * random path in O(1). On the other hand, there's no particular point
+	 * in doing this faster than in O(n), because the bottleneck isn't here
+	 * anyway, it is in the iteration over all modifications. But still,
+	 * let's make it O(1). There might be a point where the iteration over
+	 * modifications gets cut off early, and that optimization will start to
+	 * make sense.
+	 */
 	int n_infeasibles = 1;
 	static struct route *infeasibles[MAX_N_CUSTOMERS];
 
@@ -170,10 +180,10 @@ squeeze(struct solution *s)
 void
 perturb(struct solution *s)
 {
-
 	if (options.log_level == LOGLEVEL_VERBOSE)
 		debug_print("started", RESET);
 	int n_modifications = 0;
+	/* TODO: reduce the number of unsuccessful iterations */
 	for (int i = 0; i < options.i_rand; i++) {
 		struct customer *v = solution_find_customer_by_id(s,
 			randint(1, p.n_customers - 1));
@@ -208,6 +218,7 @@ insert_eject(struct solution *s)
 	assert(s->w != NULL);
 	assert(is_ejected(s->w));
 	assert(solution_feasible(s));
+	/* TODO: don't dup solution, instead use some persistent structure */
 	struct solution *s_dup = solution_dup(s);
 
 	int64_t p_best = INT64_MAX;
@@ -217,33 +228,43 @@ insert_eject(struct solution *s)
 
 	for (int i = 0; i < s->n_routes; i++) {
 		struct route *v_route = s->routes[i];
-		struct modification m = route_find_optimal_insertion(
-			v_route, s->w, eama_solver.alpha, eama_solver.beta);
-		if (!modification_applicable(m))
-			continue;
-		modification_apply(m);
-		assert(!is_ejected(s->w));
-		assert(!route_feasible(v_route));
+		struct customer *v;
+		/* iterate over all possible insert positions in v_route */
+		rlist_foreach_entry(v, &v_route->list, in_route) {
+			if (v == depot_head(v_route))
+				continue;
+			struct modification m = modification_new(INSERT, v, s->w);
+			if (!modification_applicable(m))
+				continue;
+			modification_apply(m);
 
-		struct fiber *f = fiber_new(feasible_ejections_f);
-		fiber_start(f, v_route, options.k_max, eama_solver.p, &ejection, &p_best);
-		while(!fiber_is_dead(f)) {
-			opt_insertion = m;
-			rlist_del(&opt_ejection);
-			struct customer *c;
-			rlist_foreach_entry(c, &ejection, in_eject_temp)
-				rlist_add_tail_entry(&opt_ejection, c, in_opt_eject);
-			fiber_call(f);
+			assert(!is_ejected(s->w));
+			assert(!route_feasible(v_route));
+			/*
+			 * iterate over all feasible ejections, looking for one
+			 * that minimizes the sum p of the ejected customers
+			 */
+			struct fiber *f = fiber_new(feasible_ejections_f);
+			fiber_start(f, v_route, options.k_max, eama_solver.p, &ejection, &p_best);
+			while(!fiber_is_dead(f)) {
+				opt_insertion = m;
+				rlist_create(&opt_ejection);
+				struct customer *c;
+				rlist_foreach_entry(c, &ejection, in_eject_temp)
+					rlist_add_tail_entry(&opt_ejection, c, in_opt_eject);
+				fiber_call(f);
+			}
+			assert(rlist_empty(&ejection));
+			/* roll insertion back */
+			m = modification_new(EJECT, s->w, NULL);
+			assert(modification_applicable(m));
+			modification_apply(m);
 		}
-		assert(rlist_empty(&ejection));
-		m = modification_new(EJECT, s->w, NULL);
-		assert(modification_applicable(m));
-		modification_apply(m);
 	}
 	if (options.log_level == LOGLEVEL_VERBOSE)
 		debug_print(tt_sprintf("opt insertion-ejection p_sum: %ld", p_best), RESET);
 
-	if (unlikely(opt_insertion.v == NULL && rlist_empty(&opt_ejection))) {
+	if (opt_insertion.v == NULL && rlist_empty(&opt_ejection)) {
 		solution_move(s, s_dup);
 		return -1;
 	}
@@ -263,6 +284,10 @@ insert_eject(struct solution *s)
 	s->w = NULL;
 	solution_check_missed_customers(s);
 
+	/*
+	 * TODO: do not update penalty after each ejection,
+	 * update it once at the end.
+	 */
 	struct customer *c;
 	rlist_foreach_entry(c, &opt_ejection, in_opt_eject) {
 		struct modification m = modification_new(EJECT, c, NULL);
@@ -287,6 +312,7 @@ delete_route(struct solution *s, clock_t deadline)
 
 	assert(rlist_empty(&s->ejection_pool));
 	assert(solution_feasible(s));
+	/* TODO: don't dup solution, instead use some persistent structure */
 	struct solution *s_dup = solution_dup(s);
 	solution_eliminate_random_route(s);
 	assert(solution_feasible(s));

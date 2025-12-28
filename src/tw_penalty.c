@@ -26,6 +26,10 @@ tw_penalty_init(struct route *r)
 		next->a = MIN(MAX(a_quote, next->e), next->l);
 		next->tw_pf =
 			prev->tw_pf + MAX(0., a_quote - next->l);
+		/*
+		 * TODO: It's strange to do it here. Move this into a
+		 * separeate `route_enumerate` function.
+		 */
 		next->idx = prev->idx + 1;
 		prev = next;
 	}
