@@ -74,4 +74,4 @@ jobs:
         ASAN: ON
         ASAN_OPTIONS: debug=true:heap_profile=0:detect_invalid_pointer_pairs=3:symbolize=1:detect_leaks=1:dump_instruction_bytes=1:print_suppressions=0
       run: |
-        ./debug-build-asan/routes GehringHomberger1000/C1_10_1.TXT C1_10_1.sol --lower_bound 100 --log_level=normal
+        ./debug-build-asan/routes GehringHomberger1000/C1_10_1.TXT C1_10_1.sol --lower_bound 100 --log_level normal

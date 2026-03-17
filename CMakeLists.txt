@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.5)
 
 project(routes C CXX ASM)
 
+# Required for pthread_setname_np, pthread_getattr_np on glibc/Linux
+add_definitions(-D_GNU_SOURCE)
+
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 set(CMAKE_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_INCLUDE_PATH})
 

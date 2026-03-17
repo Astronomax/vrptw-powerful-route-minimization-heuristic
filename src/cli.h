@@ -2,6 +2,7 @@
 #define EAMA_ROUTES_MINIMIZATION_HEURISTIC_CLI_ARGS_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 
 typedef enum
@@ -22,6 +23,8 @@ struct cli_options {
     clock_t t_max;
     int i_rand;
     int lower_bound;
+    bool has_seed;
+    uint64_t seed;
 };
 
 extern struct cli_options options;

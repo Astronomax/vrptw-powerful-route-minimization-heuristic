@@ -72,12 +72,13 @@ file1 - problem statement, file2 - where to output the solution
 
 Options:
   --beta_correction       - Enables beta-correction mechanism.
-  --log_level=<option>    - Log level: none, normal, verbose.
-  --n_near=<value>        - Sets the preferred n_near.
-  --k_max=<value>         - Sets the preferred k_max.
-  --t_max=<value>         - Sets the preferred t_max (in secs).
-  --i_rand=<value>        - Sets the preferred i_rand.
-  --lower_bound=<value>   - Sets the preferred lower_bound
+  --log_level <option>    - Log level: none, normal, verbose.
+  --n_near <value>        - Sets the preferred n_near.
+  --k_max <value>         - Sets the preferred k_max.
+  --t_max <value>         - Sets the preferred t_max (in secs).
+  --i_rand <value>        - Sets the preferred i_rand.
+  --lower_bound <value>   - Sets the preferred lower_bound.
+  --seed <value>          - Sets the pseudo-random seed.
 $ ./build/routes GehringHomberger1000/C1_10_1.TXT C1_10_1.sol --lower_bound 100 --t_max 120
 ```
 After completion, the current directory will contain a file with the solution, the name of which you specified when starting. In this example it is "C1_10_1.sol".

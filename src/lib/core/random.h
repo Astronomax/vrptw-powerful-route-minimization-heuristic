@@ -40,9 +40,24 @@ extern "C" {
 void
 random_init(void);
 
+/**
+ * Seed the xoshiro256++ pseudo-random generator used by the solver.
+ *
+ * This does not affect random_bytes(), real_random(), or any entropy source
+ * configured by random_init().
+ */
+void
+pseudo_random_seed(uint64_t seed);
+
 void
 random_free(void);
 
+/**
+ * Fill `buf` with random bytes.
+ *
+ * Prefer the OS entropy source configured by random_init(). If entropy reads
+ * are unavailable or partial, remaining bytes are generated via libc rand().
+ */
 void
 random_bytes(char *buf, size_t size);
 
@@ -61,9 +76,7 @@ uint64_t
 xoshiro_random(void);
 
 /**
- * Sets the `seed` for a new sequence of pseudo-random integers to be returned
- * by xoshiro_random(). These sequences are repeatable by calling xoshiro_srand
- * with the same seed value.
+ * Sets the xoshiro256++ internal state directly.
  */
 void
 xoshiro_srand(uint64_t *seed);

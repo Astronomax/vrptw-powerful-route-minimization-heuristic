@@ -64,3 +64,8 @@ create_unit_test(PREFIX ejection
                  SOURCES ejection.c ${common_sources}
                  LIBRARIES core unit
 )
+
+create_unit_test(PREFIX random
+                 SOURCES random.c
+                 LIBRARIES core unit
+)

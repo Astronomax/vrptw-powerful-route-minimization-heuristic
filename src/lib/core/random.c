@@ -39,9 +39,19 @@
 //#include "say.h"
 #include "tt_static.h"
 
-static int rfd;
+static int rfd = -1;
 
 static uint64_t state[4];
+
+static inline uint64_t
+splitmix64_next(uint64_t *x)
+{
+	*x += 0x9E3779B97F4A7C15ULL;
+	uint64_t z = *x;
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+	return z ^ (z >> 31);
+}
 
 void
 random_init(void)
@@ -70,8 +80,19 @@ random_init(void)
 srand:
 	srandom(seed);
 	srand(seed);
-
 	random_bytes((char *)state, sizeof(state));
+}
+
+void
+pseudo_random_seed(uint64_t seed)
+{
+	uint64_t mix = seed;
+	/*
+	 * The solver uses xoshiro256++ for pseudo-randomness. Seed only that
+	 * generator so deterministic runs do not alter the entropy-backed API.
+	 */
+	for (int i = 0; i < 4; i++)
+		state[i] = splitmix64_next(&mix);
 }
 
 void
@@ -80,6 +101,7 @@ random_free(void)
 	if (rfd == -1)
 		return;
 	close(rfd);
+	rfd = -1;
 }
 
 void
@@ -102,7 +124,6 @@ random_bytes(char *buf, size_t size)
 		attempt = 0;
 	}
 rand:
-	/* fill remaining bytes with PRNG */
 	while (generated < size)
 		buf[generated++] = rand();
 }
