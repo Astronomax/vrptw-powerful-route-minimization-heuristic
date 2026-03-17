@@ -5,6 +5,7 @@
 
 #include "core/fiber.h"
 #include "core/memory.h"
+#include "core/random.h"
 
 int
 main(int argc, const char *argv[])
@@ -14,6 +15,8 @@ main(int argc, const char *argv[])
 	memory_init();
 	fiber_init(fiber_c_invoke);
 	random_init();
+	if (options.has_seed)
+		pseudo_random_seed(options.seed);
 
 	problem_decode(options.problem_file);
 

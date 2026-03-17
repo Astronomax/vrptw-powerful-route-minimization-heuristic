@@ -3,6 +3,7 @@ cmake-build-debug
 cmake-build-relwithdebinfo
 debug-build
 release-build
+build
 .idea
 GehringHomberger1000
 GehringHomberger200

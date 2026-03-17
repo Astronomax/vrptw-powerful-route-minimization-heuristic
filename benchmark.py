@@ -97,7 +97,7 @@ def run_test(instance: str, problem_dir: Path, build_dir: Path,
         str(problem_file),
         str(solution_file),
         "--lower_bound", str(lower_bound),
-        "--log_level=normal",
+        "--log_level", "normal",
         "--t_max", str(time_limit_sec),
         "--beta_correction"
     ]

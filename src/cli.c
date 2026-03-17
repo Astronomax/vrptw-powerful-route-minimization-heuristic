@@ -4,6 +4,8 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include <errno.h>
+#include <limits.h>
 
 #include "core/diag.h"
 
@@ -27,12 +29,13 @@ usage(void)
 	printf("\n");
 	printf("Options:\n");
 	printf("  --beta_correction       - Enables beta-correction mechanism.\n");
-	printf("  --log_level=<option>    - Log level: none, normal, verbose.\n");
-	printf("  --n_near=<value>        - Sets the preferred n_near.\n");
-	printf("  --k_max=<value>         - Sets the preferred k_max.\n");
-	printf("  --t_max=<value>         - Sets the preferred t_max (in secs).\n");
-	printf("  --i_rand=<value>        - Sets the preferred i_rand.\n");
-	printf("  --lower_bound=<value>   - Sets the preferred lower_bound.\n");
+	printf("  --log_level <option>    - Log level: none, normal, verbose.\n");
+	printf("  --n_near <value>        - Sets the preferred n_near.\n");
+	printf("  --k_max <value>         - Sets the preferred k_max.\n");
+	printf("  --t_max <value>         - Sets the preferred t_max (in secs).\n");
+	printf("  --i_rand <value>        - Sets the preferred i_rand.\n");
+	printf("  --lower_bound <value>   - Sets the preferred lower_bound.\n");
+	printf("  --seed <value>          - Sets the pseudo-random seed.\n");
 }
 
 bool
@@ -71,21 +74,6 @@ match_longopt(const char *name)
 	return str_eq(&current_arg[2], name);
 }
 
-static inline bool
-match_shortopt(const char *name)
-{
-	return str_eq(&current_arg[1], name);
-}
-
-static inline const char *
-match_argopt(const char *name)
-{
-	size_t len = strlen(name);
-	if (memcmp(&current_arg[2], name, len) != 0) return false;
-	if (current_arg[2 + len] != '=') return false;
-	return &current_arg[2 + len + 1];
-}
-
 static int
 parse_multi_option(const char *start, unsigned count, const char **elements)
 {
@@ -95,78 +83,80 @@ parse_multi_option(const char *start, unsigned count, const char **elements)
 	return select;
 }
 
+static int
+parse_next_int_value(const char *name)
+{
+	if (at_end())
+		panic("error: --%s needs a valid integer.", name);
+
+	const char *value_string = next_arg();
+	char *p_end;
+	errno = 0;
+	long parsed = strtol(value_string, &p_end, 10);
+	if (p_end == value_string || errno != 0 ||
+	    p_end != value_string + strlen(value_string) ||
+	    parsed < INT_MIN || parsed > INT_MAX) {
+		panic("error: --%s needs a valid integer.", name);
+	}
+	return (int)parsed;
+}
+
+static uint64_t
+parse_next_uint64_value(const char *name)
+{
+	if (at_end())
+		panic("error: --%s needs a valid integer.", name);
+
+	const char *value_string = next_arg();
+	char *p_end;
+	errno = 0;
+	unsigned long long parsed = strtoull(value_string, &p_end, 10);
+	if (p_end == value_string || errno != 0 ||
+	    p_end != value_string + strlen(value_string)) {
+		panic("error: --%s needs a valid integer.", name);
+	}
+	return (uint64_t)parsed;
+}
+
 static void
 parse_option(void)
 {
-	const char *argopt;
 	switch (current_arg[1]) {
-		//case '?':
-		//	if (match_shortopt("?")) {
-		//		usage();
-		//		exit(0);
-		//	}
-		//	break;
 		case '-':
 			if (match_longopt("beta_correction")) {
 				options.beta_correction = true;
 				return;
 			}
-			if ((argopt = match_argopt("log_level"))) {
-				options.log_level = (log_level) parse_multi_option(argopt, 3, log_levels);
-				return;
-			}
-			if (match_longopt("n_near"))
-			{
+			if (match_longopt("log_level")) {
 				if (at_end())
-					panic("error: --n_near needs a valid integer.");
-				const char *n_near_string = next_arg();
-				char *p_end;
-				options.n_near = (int)strtol(n_near_string, &p_end, 10);
-				if (p_end != n_near_string + strlen(n_near_string))
-					panic("error: --n_near needs a valid integer.");
+					panic("error: --log_level needs a valid option.");
+				options.log_level =
+					(log_level) parse_multi_option(next_arg(), 3, log_levels);
 				return;
 			}
-			if (match_longopt("k_max"))
-			{
-				if (at_end())
-					panic("error: --k_max needs a valid integer.");
-				const char *k_max_string = next_arg();
-				char *p_end;
-				options.k_max = (int)strtol(k_max_string, &p_end, 10);
-				if (p_end != k_max_string + strlen(k_max_string))
-					panic("error: --k_max needs a valid integer.");
+			if (match_longopt("n_near")) {
+				options.n_near = parse_next_int_value("n_near");
 				return;
 			}
-			if (match_longopt("t_max"))
-			{
-				if (at_end()) panic("error: --t_max needs a valid integer.");
-				const char *t_max_string = next_arg();
-				char *p_end;
-				options.t_max = (int)strtol(t_max_string, &p_end, 10);
-				if (p_end != t_max_string + strlen(t_max_string))
-					panic("error: --t_max needs a valid integer.");
+			if (match_longopt("k_max")) {
+				options.k_max = parse_next_int_value("k_max");
 				return;
 			}
-			if (match_longopt("i_rand"))
-			{
-				if (at_end())
-					panic("error: --i_rand needs a valid integer.");
-				const char *i_rand_string = next_arg();
-				char *p_end;
-				options.i_rand = (int)strtol(i_rand_string, &p_end, 10);
-				if (p_end != i_rand_string + strlen(i_rand_string))
-					panic("error: --k_max needs a valid integer.");
+			if (match_longopt("t_max")) {
+				options.t_max = (clock_t)parse_next_int_value("t_max");
 				return;
 			}
-			if (match_longopt("lower_bound"))
-			{
-				if (at_end())
-					panic("error: --lower_bound needs a valid integer.");
-				const char *lower_bound_string = next_arg();
-				char *p_end;
-				options.lower_bound = (int)strtol(lower_bound_string, &p_end, 10);
-				if (p_end != lower_bound_string + strlen(lower_bound_string))
-					panic("error: --lower_bound needs a valid integer.");
+			if (match_longopt("i_rand")) {
+				options.i_rand = parse_next_int_value("i_rand");
+				return;
+			}
+			if (match_longopt("lower_bound")) {
+				options.lower_bound = parse_next_int_value("lower_bound");
+				return;
+			}
+			if (match_longopt("seed")) {
+				options.seed = parse_next_uint64_value("seed");
+				options.has_seed = true;
 				return;
 			}
 		default:
@@ -196,6 +186,8 @@ parse_arguments(int argc, const char *argv[])
 	options.t_max = (clock_t)365 * 86400 * 100;
 	options.i_rand = 1000;
 	options.lower_bound = 0;
+	options.has_seed = false;
+	options.seed = 0;
 
 	for (arg_index = 3; arg_index < arg_count; arg_index++)
 	{
