@@ -474,14 +474,19 @@ solution_find_feasible_insertion(struct solution *s, struct customer *w)
 	assert(is_ejected(w));
 	if (!solution_global_initialized)
 		solution_global_init();
-#define check_insertion() do {					\
-	struct modification m = modification_new(INSERT, v, w);	\
-	if (modification_applicable(m)) {			\
-		double penalty = modification_delta(m, 1., 1.);	\
-		if (penalty < EPS5)				\
-			return m;				\
-	}							\
+#define check_insertion() do {						\
+	struct modification m = modification_new(INSERT, v, w);		\
+	if (modification_applicable(m)) {				\
+		double penalty = modification_delta(m, 1., 1.);		\
+		if (penalty < EPS5) {					\
+			++n_feasible_insertions;				\
+			if (randint(1, n_feasible_insertions) == 1)	\
+				selected = m;				\
+		}							\
+	}								\
 } while (0)
+	int n_feasible_insertions = 0;
+	struct modification selected = modification_new(INSERT, nullptr, w);
 	customer *v;
 	for (int i = 0; i < p.n_customers; i++) {
 		int id = neighbours_sorted[w->id][i];
@@ -494,7 +499,7 @@ solution_find_feasible_insertion(struct solution *s, struct customer *w)
 		check_insertion();
 	}
 #undef check_insertion
-	return modification_new(INSERT, nullptr, w);
+	return selected;
 }
 
 struct modification

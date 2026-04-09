@@ -28,22 +28,21 @@ Its implementation may also appear in this repository at some point, although th
 * [Solomon's problem sets](https://www.sintef.no/projectweb/top/vrptw/solomon-benchmark/) (25, 50, and 100 customers)
 * [Gehring & Homberger's extended benchmark](https://www.sintef.no/projectweb/top/vrptw/homberger-benchmark/) (200, 400, 600, 800, and 1000 customers)
 
+To run the Gehring & Homberger 1000-customer benchmark, first build the solver in `Release` mode (`-DCMAKE_BUILD_TYPE=Release`) and place the benchmark instances into the `GehringHomberger1000` directory in the repository root. Then run `python3 benchmark.py --build-dir <your-build-dir>` to execute the full benchmark suite, or add `--instance c1_10_1` to run a single case. The script writes the aggregated results to `benchmark_results.json`.
+
 ### Benchmark Results
 
 Results on Gehring & Homberger 1000-customer instances (60 test cases):
 
 | Time Limit | This Implementation | Paper Results |
 |------------|---------------------|---------------|
-| 10 minutes | 3424                | 3420          |
-| 60 minutes | 3421                | 3419          |
-| 5 hours    | 3421                | 3417          |
+| 10 minutes | 3426                | 3420          |
+| 60 minutes | 3423                | 3419          |
+| 5 hours    | 3418                | 3417          |
 
 The table shows the total number of routes across all 60 test instances. The optimal sum (if all instances reached their current best-known solution) is 3416 (see this commit date).
 
 **Instances that did not reach the best-known solution within 5 hours:**
-* `c1_10_6`: best_known=99, achieved=100
-* `c1_10_8`: best_known=92, achieved=93
-* `c2_10_3`: best_known=28, achieved=29
 * `c2_10_8`: best_known=28, achieved=29
 * `c2_10_9`: best_known=28, achieved=29
 
@@ -61,7 +60,7 @@ $ git submodule update --init --recursive
 After that, build in the standard way:
 
 ```console
-$ mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo && make && cd ..
+$ mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j && cd ..
 ```
 
 Then you can run the utility:

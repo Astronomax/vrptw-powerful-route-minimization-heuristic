@@ -1,0 +1,405 @@
+{
+  "time_limits_minutes": [
+    10,
+    60,
+    300
+  ],
+  "results": {
+    "c1_10_1": {
+      "best_known": 100,
+      "route_counts": {}
+    },
+    "c1_10_2": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "c1_10_3": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "c1_10_4": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "c1_10_5": {
+      "best_known": 100,
+      "route_counts": {}
+    },
+    "c1_10_6": {
+      "best_known": 99,
+      "route_counts": {
+        "10": 100,
+        "60": 100
+      }
+    },
+    "c1_10_7": {
+      "best_known": 97,
+      "route_counts": {}
+    },
+    "c1_10_8": {
+      "best_known": 92,
+      "route_counts": {
+        "10": 93,
+        "60": 93
+      }
+    },
+    "c1_10_9": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "c1_10_10": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "c2_10_1": {
+      "best_known": 30,
+      "route_counts": {}
+    },
+    "c2_10_2": {
+      "best_known": 29,
+      "route_counts": {}
+    },
+    "c2_10_3": {
+      "best_known": 28,
+      "route_counts": {
+        "10": 29,
+        "60": 29
+      }
+    },
+    "c2_10_4": {
+      "best_known": 28,
+      "route_counts": {}
+    },
+    "c2_10_5": {
+      "best_known": 30,
+      "route_counts": {}
+    },
+    "c2_10_6": {
+      "best_known": 29,
+      "route_counts": {
+        "10": 30,
+        "60": 30
+      }
+    },
+    "c2_10_7": {
+      "best_known": 29,
+      "route_counts": {
+        "10": 30,
+        "60": 30
+      }
+    },
+    "c2_10_8": {
+      "best_known": 28,
+      "route_counts": {
+        "10": 29,
+        "60": 29,
+        "300": 29
+      }
+    },
+    "c2_10_9": {
+      "best_known": 28,
+      "route_counts": {
+        "10": 29,
+        "60": 29,
+        "300": 29
+      }
+    },
+    "c2_10_10": {
+      "best_known": 28,
+      "route_counts": {
+        "10": 29
+      }
+    },
+    "r1_10_1": {
+      "best_known": 100,
+      "route_counts": {}
+    },
+    "r1_10_2": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_3": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_4": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_5": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_6": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_7": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_8": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_9": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r1_10_10": {
+      "best_known": 91,
+      "route_counts": {}
+    },
+    "r2_10_1": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_2": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_3": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_4": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_5": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_6": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_7": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_8": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_9": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "r2_10_10": {
+      "best_known": 19,
+      "route_counts": {}
+    },
+    "rc1_10_1": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_2": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_3": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_4": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_5": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_6": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_7": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_8": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_9": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc1_10_10": {
+      "best_known": 90,
+      "route_counts": {}
+    },
+    "rc2_10_1": {
+      "best_known": 20,
+      "route_counts": {
+        "10": 21
+      }
+    },
+    "rc2_10_2": {
+      "best_known": 18,
+      "route_counts": {
+        "10": 19
+      }
+    },
+    "rc2_10_3": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_4": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_5": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_6": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_7": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_8": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_9": {
+      "best_known": 18,
+      "route_counts": {}
+    },
+    "rc2_10_10": {
+      "best_known": 18,
+      "route_counts": {}
+    }
+  },
+  "sums": {
+    "10_min": 409,
+    "60_min": 340,
+    "300_min": 58
+  },
+  "not_optimal": {
+    "10_min": [
+      {
+        "instance": "c1_10_6",
+        "best_known": 99,
+        "route_count": 100,
+        "difference": 1
+      },
+      {
+        "instance": "c1_10_8",
+        "best_known": 92,
+        "route_count": 93,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_3",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_6",
+        "best_known": 29,
+        "route_count": 30,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_7",
+        "best_known": 29,
+        "route_count": 30,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_8",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_9",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_10",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "rc2_10_1",
+        "best_known": 20,
+        "route_count": 21,
+        "difference": 1
+      },
+      {
+        "instance": "rc2_10_2",
+        "best_known": 18,
+        "route_count": 19,
+        "difference": 1
+      }
+    ],
+    "60_min": [
+      {
+        "instance": "c1_10_6",
+        "best_known": 99,
+        "route_count": 100,
+        "difference": 1
+      },
+      {
+        "instance": "c1_10_8",
+        "best_known": 92,
+        "route_count": 93,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_3",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_6",
+        "best_known": 29,
+        "route_count": 30,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_7",
+        "best_known": 29,
+        "route_count": 30,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_8",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_9",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      }
+    ],
+    "300_min": [
+      {
+        "instance": "c2_10_8",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      },
+      {
+        "instance": "c2_10_9",
+        "best_known": 28,
+        "route_count": 29,
+        "difference": 1
+      }
+    ]
+  }
+}
