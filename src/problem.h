@@ -11,6 +11,7 @@ struct problem {
 	struct customer *depot;
 	struct rlist customers;
 	int n_customers;
+	double distance_matrix[MAX_N_CUSTOMERS + 1][MAX_N_CUSTOMERS + 1];
 };
 
 extern struct problem p;
@@ -24,6 +25,9 @@ problem_customers_dup(struct rlist *list);
 
 void
 problem_destroy(void);
+
+void
+problem_init_distance_matrix(void);
 
 int
 problem_routes_straight_lower_bound(void);

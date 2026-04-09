@@ -5,6 +5,7 @@
 void
 problem_decode(const char *file)
 {
+	p.n_customers = 0;
 	std::string file_string = std::string(file);
 	std::ifstream f(file_string);
 	//c1_2_1
@@ -50,5 +51,6 @@ problem_decode(const char *file)
 		rlist_add_tail_entry(&p.customers, customer_dup(&c), in_route);
 		++p.n_customers;
 	}
+	problem_init_distance_matrix();
 #undef read_customer
 }
