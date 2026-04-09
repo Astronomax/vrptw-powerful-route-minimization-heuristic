@@ -1,0 +1,1914 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="470" onload="init(evt)" viewBox="0 0 1200 470" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+		if (currentSearchTerm === null) return;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="470.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >routes C1_10_1</text>
+<text id="details" x="10.00" y="453" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="453" > </text>
+<g id="frames">
+<g >
+<title>std::num_get&lt;char, std::istreambuf_iterator&lt;char, std::char_traits&lt;char&gt; &gt; &gt;::do_get (8,555,936 samples, 0.02%)</title><rect x="1171.2" y="277" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="1174.20" y="287.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (37,039,198 samples, 0.08%)</title><rect x="988.9" y="245" width="0.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="991.87" y="255.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_eject_penalty (109,449,486 samples, 0.23%)</title><rect x="968.8" y="213" width="2.7" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="971.81" y="223.5" ></text>
+</g>
+<g >
+<title>_int_free_merge_chunk (36,645,717 samples, 0.08%)</title><rect x="686.4" y="373" width="0.9" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="689.42" y="383.5" ></text>
+</g>
+<g >
+<title>solution_dup (36,860,767 samples, 0.08%)</title><rect x="23.8" y="373" width="0.9" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="26.76" y="383.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_thermal (37,089,980 samples, 0.08%)</title><rect x="362.7" y="261" width="1.0" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="365.73" y="271.5" ></text>
+</g>
+<g >
+<title>_start (19,430,106,474 samples, 41.02%)</title><rect x="687.3" y="389" width="484.1" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="690.34" y="399.5" >_start</text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta_lower_bound (181,074,220 samples, 0.38%)</title><rect x="632.6" y="309" width="4.5" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="635.58" y="319.5" ></text>
+</g>
+<g >
+<title>unlink_chunk (36,704,361 samples, 0.08%)</title><rect x="684.5" y="373" width="0.9" height="15.0" fill="rgb(236,146,34)" rx="2" ry="2" />
+<text  x="687.50" y="383.5" ></text>
+</g>
+<g >
+<title>fiber_recycle (36,782,968 samples, 0.08%)</title><rect x="654.3" y="357" width="0.9" height="15.0" fill="rgb(241,165,39)" rx="2" ry="2" />
+<text  x="657.31" y="367.5" ></text>
+</g>
+<g >
+<title>operator (130,040,456 samples, 0.27%)</title><rect x="946.3" y="133" width="3.2" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="949.27" y="143.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta (109,449,486 samples, 0.23%)</title><rect x="968.8" y="261" width="2.7" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="971.81" y="271.5" ></text>
+</g>
+<g >
+<title>_int_free_merge_chunk (332,109,345 samples, 0.70%)</title><rect x="879.9" y="229" width="8.2" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="882.86" y="239.5" ></text>
+</g>
+<g >
+<title>rlist_add (147,790,250 samples, 0.31%)</title><rect x="471.9" y="309" width="3.7" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="474.88" y="319.5" ></text>
+</g>
+<g >
+<title>c_penalty_two_opt_penalty_delta (180,117,640 samples, 0.38%)</title><rect x="1014.4" y="261" width="4.5" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="1017.37" y="271.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_insert_delta (43,821,271 samples, 0.09%)</title><rect x="937.9" y="245" width="1.1" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="940.90" y="255.5" ></text>
+</g>
+<g >
+<title>fiber_yield_impl (37,198,717 samples, 0.08%)</title><rect x="628.1" y="293" width="0.9" height="15.0" fill="rgb(217,57,13)" rx="2" ry="2" />
+<text  x="631.05" y="303.5" ></text>
+</g>
+<g >
+<title>checked_request2size (37,121,563 samples, 0.08%)</title><rect x="987.9" y="245" width="1.0" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="990.94" y="255.5" ></text>
+</g>
+<g >
+<title>modification_apply (37,522,996 samples, 0.08%)</title><rect x="962.5" y="277" width="0.9" height="15.0" fill="rgb(242,174,41)" rx="2" ry="2" />
+<text  x="965.50" y="287.5" ></text>
+</g>
+<g >
+<title>rlist_move (37,160,603 samples, 0.08%)</title><rect x="697.4" y="261" width="0.9" height="15.0" fill="rgb(209,19,4)" rx="2" ry="2" />
+<text  x="700.36" y="271.5" ></text>
+</g>
+<g >
+<title>[[heap]] (767,210,151 samples, 1.62%)</title><rect x="10.0" y="389" width="19.1" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="13.00" y="399.5" ></text>
+</g>
+<g >
+<title>c_penalty_out_relocate_penalty_delta (75,402,027 samples, 0.16%)</title><rect x="13.6" y="373" width="1.9" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="16.63" y="383.5" ></text>
+</g>
+<g >
+<title>route_delete (35,171,023 samples, 0.07%)</title><rect x="645.3" y="293" width="0.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="648.31" y="303.5" ></text>
+</g>
+<g >
+<title>solution_dup (35,659,366 samples, 0.08%)</title><rect x="1115.5" y="245" width="0.9" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="1118.47" y="255.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_penalty (37,978,244 samples, 0.08%)</title><rect x="938.0" y="229" width="1.0" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="941.04" y="239.5" ></text>
+</g>
+<g >
+<title>tw_penalty_one_opt_penalty (147,224,693 samples, 0.31%)</title><rect x="972.5" y="245" width="3.6" height="15.0" fill="rgb(237,147,35)" rx="2" ry="2" />
+<text  x="975.47" y="255.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_insert_delta (107,018,404 samples, 0.23%)</title><rect x="1011.7" y="245" width="2.7" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="1014.71" y="255.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (35,512,420 samples, 0.07%)</title><rect x="11.8" y="373" width="0.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="14.84" y="383.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (810,967,284 samples, 1.71%)</title><rect x="1148.3" y="229" width="20.2" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1151.28" y="239.5" ></text>
+</g>
+<g >
+<title>insert_feasible (1,360,632,876 samples, 2.87%)</title><rect x="919.5" y="293" width="33.9" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="922.53" y="303.5" >in..</text>
+</g>
+<g >
+<title>tick_nohz_handler (34,187,951 samples, 0.07%)</title><rect x="361.9" y="181" width="0.8" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="364.88" y="191.5" ></text>
+</g>
+<g >
+<title>rlist_next (37,311,775 samples, 0.08%)</title><rect x="889.1" y="245" width="0.9" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="892.08" y="255.5" ></text>
+</g>
+<g >
+<title>_int_free_maybe_consolidate (73,831,841 samples, 0.16%)</title><rect x="1087.9" y="229" width="1.9" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="1090.94" y="239.5" ></text>
+</g>
+<g >
+<title>therm_throt_process (37,089,980 samples, 0.08%)</title><rect x="362.7" y="197" width="1.0" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="365.73" y="207.5" ></text>
+</g>
+<g >
+<title>[unknown] (24,840,547,159 samples, 52.45%)</title><rect x="66.5" y="389" width="618.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="69.54" y="399.5" >[unknown]</text>
+</g>
+<g >
+<title>c_penalty_init (110,568,680 samples, 0.23%)</title><rect x="909.4" y="245" width="2.8" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="912.42" y="255.5" ></text>
+</g>
+<g >
+<title>_int_free (375,696,930 samples, 0.79%)</title><rect x="1149.2" y="213" width="9.3" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="1152.19" y="223.5" ></text>
+</g>
+<g >
+<title>_int_free_create_chunk (186,278,220 samples, 0.39%)</title><rect x="883.5" y="213" width="4.6" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="886.50" y="223.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_eject_delta (113,172,926 samples, 0.24%)</title><rect x="1008.9" y="245" width="2.8" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="1011.89" y="255.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_penalty (35,406,594 samples, 0.07%)</title><rect x="682.7" y="373" width="0.9" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="685.71" y="383.5" ></text>
+</g>
+<g >
+<title>__hrtimer_run_queues (34,187,951 samples, 0.07%)</title><rect x="361.9" y="197" width="0.8" height="15.0" fill="rgb(244,180,43)" rx="2" ry="2" />
+<text  x="364.88" y="207.5" ></text>
+</g>
+<g >
+<title>_int_free_create_chunk (34,339,376 samples, 0.07%)</title><rect x="1091.6" y="213" width="0.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1094.63" y="223.5" ></text>
+</g>
+<g >
+<title>solution_meta_new (109,177,660 samples, 0.23%)</title><rect x="1113.6" y="261" width="2.8" height="15.0" fill="rgb(253,221,53)" rx="2" ry="2" />
+<text  x="1116.64" y="271.5" ></text>
+</g>
+<g >
+<title>region_free (37,889,584 samples, 0.08%)</title><rect x="502.7" y="325" width="0.9" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="505.65" y="335.5" ></text>
+</g>
+<g >
+<title>__ieee754_pow_fma (182,273,956 samples, 0.38%)</title><rect x="33.6" y="325" width="4.6" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="36.62" y="335.5" ></text>
+</g>
+<g >
+<title>modification_applicable (186,579,062 samples, 0.39%)</title><rect x="929.6" y="261" width="4.6" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="932.60" y="271.5" ></text>
+</g>
+<g >
+<title>init_neighbours_sorted (120,570,191 samples, 0.25%)</title><rect x="950.4" y="197" width="3.0" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="953.43" y="207.5" ></text>
+</g>
+<g >
+<title>dist (181,884,402 samples, 0.38%)</title><rect x="1079.7" y="229" width="4.6" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1082.73" y="239.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (35,171,023 samples, 0.07%)</title><rect x="645.3" y="277" width="0.9" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="648.31" y="287.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (330,397,840 samples, 0.70%)</title><rect x="1084.3" y="245" width="8.2" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1087.26" y="255.5" ></text>
+</g>
+<g >
+<title>solution_dup (74,577,880 samples, 0.16%)</title><rect x="913.1" y="245" width="1.8" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="916.06" y="255.5" ></text>
+</g>
+<g >
+<title>c_penalty_one_opt_penalty (36,026,674 samples, 0.08%)</title><rect x="1018.0" y="245" width="0.9" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="1020.96" y="255.5" ></text>
+</g>
+<g >
+<title>intel_thermal_interrupt (37,089,980 samples, 0.08%)</title><rect x="362.7" y="213" width="1.0" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="365.73" y="223.5" ></text>
+</g>
+<g >
+<title>c_penalty_init (38,370,399 samples, 0.08%)</title><rect x="637.1" y="277" width="1.0" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="640.09" y="287.5" ></text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (34,187,951 samples, 0.07%)</title><rect x="361.9" y="245" width="0.8" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="364.88" y="255.5" ></text>
+</g>
+<g >
+<title>[anon] (476,899,587 samples, 1.01%)</title><rect x="33.6" y="389" width="11.9" height="15.0" fill="rgb(210,23,5)" rx="2" ry="2" />
+<text  x="36.62" y="399.5" ></text>
+</g>
+<g >
+<title>fiber_recycle (37,889,584 samples, 0.08%)</title><rect x="502.7" y="341" width="0.9" height="15.0" fill="rgb(241,165,39)" rx="2" ry="2" />
+<text  x="505.65" y="351.5" ></text>
+</g>
+<g >
+<title>fiber_call (197,450,344 samples, 0.42%)</title><rect x="996.7" y="277" width="5.0" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="999.73" y="287.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta_fast (1,581,346,964 samples, 3.34%)</title><rect x="1036.7" y="245" width="39.4" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="1039.73" y="255.5" >tw_..</text>
+</g>
+<g >
+<title>[[stack]] (181,046,036 samples, 0.38%)</title><rect x="29.1" y="389" width="4.5" height="15.0" fill="rgb(243,175,42)" rx="2" ry="2" />
+<text  x="32.11" y="399.5" ></text>
+</g>
+<g >
+<title>modification_applicable (110,223,122 samples, 0.23%)</title><rect x="700.0" y="277" width="2.7" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="702.99" y="287.5" ></text>
+</g>
+<g >
+<title>update_load_avg (34,187,951 samples, 0.07%)</title><rect x="361.9" y="117" width="0.8" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="364.88" y="127.5" ></text>
+</g>
+<g >
+<title>route_delete (732,508,226 samples, 1.55%)</title><rect x="871.8" y="261" width="18.2" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="874.76" y="271.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_insert_penalty (35,179,805 samples, 0.07%)</title><rect x="1012.6" y="229" width="0.9" height="15.0" fill="rgb(248,200,47)" rx="2" ry="2" />
+<text  x="1015.59" y="239.5" ></text>
+</g>
+<g >
+<title>route_init_penalty (38,401,751 samples, 0.08%)</title><rect x="1111.8" y="261" width="0.9" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="1114.77" y="271.5" ></text>
+</g>
+<g >
+<title>void std::__introsort_loop&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*, std::allocator&lt;customer*&gt; &gt; &gt;, long, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (16,673,469 samples, 0.04%)</title><rect x="953.0" y="165" width="0.4" height="15.0" fill="rgb(239,156,37)" rx="2" ry="2" />
+<text  x="956.02" y="175.5" ></text>
+</g>
+<g >
+<title>tw_penalty_init (295,628,201 samples, 0.62%)</title><rect x="1116.4" y="261" width="7.3" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="1119.36" y="271.5" ></text>
+</g>
+<g >
+<title>dist (130,040,456 samples, 0.27%)</title><rect x="946.3" y="101" width="3.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="949.27" y="111.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_eject_penalty (36,797,806 samples, 0.08%)</title><rect x="643.5" y="293" width="0.9" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="646.47" y="303.5" ></text>
+</g>
+<g >
+<title>rlist_del (72,351,356 samples, 0.15%)</title><rect x="1168.5" y="229" width="1.8" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="1171.48" y="239.5" ></text>
+</g>
+<g >
+<title>_int_free (40,675,572 samples, 0.09%)</title><rect x="685.4" y="373" width="1.0" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="688.41" y="383.5" ></text>
+</g>
+<g >
+<title>modification_neighbourhood_data_destroy (35,171,023 samples, 0.07%)</title><rect x="645.3" y="325" width="0.9" height="15.0" fill="rgb(221,74,17)" rx="2" ry="2" />
+<text  x="648.31" y="335.5" ></text>
+</g>
+<g >
+<title>tw_penalty_init (36,671,244 samples, 0.08%)</title><rect x="1170.3" y="277" width="0.9" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="1173.28" y="287.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (63,922,713 samples, 0.13%)</title><rect x="987.3" y="261" width="1.6" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="990.27" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_init (41,711,618 samples, 0.09%)</title><rect x="991.1" y="277" width="1.0" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="994.08" y="287.5" ></text>
+</g>
+<g >
+<title>route_delete (38,194,982 samples, 0.08%)</title><rect x="666.1" y="373" width="0.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="669.08" y="383.5" ></text>
+</g>
+<g >
+<title>route_init_penalty (36,852,528 samples, 0.08%)</title><rect x="667.0" y="373" width="0.9" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="670.03" y="383.5" ></text>
+</g>
+<g >
+<title>rlist_prev (73,975,205 samples, 0.16%)</title><rect x="499.9" y="325" width="1.8" height="15.0" fill="rgb(220,71,17)" rx="2" ry="2" />
+<text  x="502.88" y="335.5" ></text>
+</g>
+<g >
+<title>__ieee754_pow_fma (9,482,321,750 samples, 20.02%)</title><rect x="215.6" y="293" width="236.3" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="218.63" y="303.5" >__ieee754_pow_fma</text>
+</g>
+<g >
+<title>unlink_chunk (9,936,794 samples, 0.02%)</title><rect x="986.1" y="213" width="0.3" height="15.0" fill="rgb(236,146,34)" rx="2" ry="2" />
+<text  x="989.15" y="223.5" ></text>
+</g>
+<g >
+<title>solution_dup (1,215,055,717 samples, 2.57%)</title><rect x="1093.5" y="277" width="30.2" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="1096.46" y="287.5" >so..</text>
+</g>
+<g >
+<title>tw_penalty_get_insert_delta (144,554,091 samples, 0.31%)</title><rect x="629.0" y="293" width="3.6" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="631.98" y="303.5" ></text>
+</g>
+<g >
+<title>__GI_____strtod_l_internal (8,555,936 samples, 0.02%)</title><rect x="1171.2" y="245" width="0.2" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1174.20" y="255.5" ></text>
+</g>
+<g >
+<title>pow@plt (328,950,188 samples, 0.69%)</title><rect x="459.2" y="309" width="8.2" height="15.0" fill="rgb(220,70,16)" rx="2" ry="2" />
+<text  x="462.18" y="319.5" ></text>
+</g>
+<g >
+<title>checked_request2size (112,049,202 samples, 0.24%)</title><rect x="1108.1" y="213" width="2.8" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="1111.08" y="223.5" ></text>
+</g>
+<g >
+<title>unlink_chunk (73,559,980 samples, 0.16%)</title><rect x="886.3" y="197" width="1.8" height="15.0" fill="rgb(236,146,34)" rx="2" ry="2" />
+<text  x="889.31" y="207.5" ></text>
+</g>
+<g >
+<title>_int_malloc (26,801,150 samples, 0.06%)</title><rect x="987.3" y="245" width="0.6" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="990.27" y="255.5" ></text>
+</g>
+<g >
+<title>solution_find_optimal_insertion (948,403,813 samples, 2.00%)</title><rect x="1123.7" y="277" width="23.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="1126.73" y="287.5" >s..</text>
+</g>
+<g >
+<title>c_penalty_init (40,742,306 samples, 0.09%)</title><rect x="74.0" y="373" width="1.0" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="76.97" y="383.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_replace_delta (644,908,340 samples, 1.36%)</title><rect x="1019.8" y="229" width="16.0" height="15.0" fill="rgb(231,119,28)" rx="2" ry="2" />
+<text  x="1022.77" y="239.5" ></text>
+</g>
+<g >
+<title>squeeze (293,997,618 samples, 0.62%)</title><rect x="59.2" y="373" width="7.3" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="62.22" y="383.5" ></text>
+</g>
+<g >
+<title>dist (35,758,884 samples, 0.08%)</title><rect x="1034.9" y="197" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1037.94" y="207.5" ></text>
+</g>
+<g >
+<title>route_new (34,740,312 samples, 0.07%)</title><rect x="989.8" y="277" width="0.9" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="992.79" y="287.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_penalty (144,554,091 samples, 0.31%)</title><rect x="629.0" y="277" width="3.6" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="631.98" y="287.5" ></text>
+</g>
+<g >
+<title>rlist_last (35,400,130 samples, 0.07%)</title><rect x="471.0" y="325" width="0.9" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="474.00" y="335.5" ></text>
+</g>
+<g >
+<title>modification_apply (36,333,300 samples, 0.08%)</title><rect x="657.9" y="373" width="0.9" height="15.0" fill="rgb(242,174,41)" rx="2" ry="2" />
+<text  x="660.92" y="383.5" ></text>
+</g>
+<g >
+<title>operator (16,673,469 samples, 0.04%)</title><rect x="953.0" y="53" width="0.4" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="956.02" y="63.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_delta (806,236,099 samples, 1.70%)</title><rect x="1127.3" y="245" width="20.1" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="1130.27" y="255.5" ></text>
+</g>
+<g >
+<title>init_neighbours_sorted (287,375,575 samples, 0.61%)</title><rect x="946.3" y="229" width="7.1" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="949.27" y="239.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_penalty (771,367,322 samples, 1.63%)</title><rect x="1128.1" y="229" width="19.3" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1131.14" y="239.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (36,907,686 samples, 0.08%)</title><rect x="1112.7" y="245" width="0.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1115.72" y="255.5" ></text>
+</g>
+<g >
+<title>insert_eject (146,781,105 samples, 0.31%)</title><rect x="45.5" y="373" width="3.7" height="15.0" fill="rgb(251,213,50)" rx="2" ry="2" />
+<text  x="48.51" y="383.5" ></text>
+</g>
+<g >
+<title>rlist_del (35,778,776 samples, 0.08%)</title><rect x="1114.6" y="245" width="0.9" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="1117.58" y="255.5" ></text>
+</g>
+<g >
+<title>__unguarded_partition_pivot&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (103,896,722 samples, 0.22%)</title><rect x="950.4" y="165" width="2.6" height="15.0" fill="rgb(252,220,52)" rx="2" ry="2" />
+<text  x="953.43" y="175.5" ></text>
+</g>
+<g >
+<title>rlist_next (35,263,423 samples, 0.07%)</title><rect x="865.4" y="245" width="0.9" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="868.42" y="255.5" ></text>
+</g>
+<g >
+<title>coro_transfer (709,681,205 samples, 1.50%)</title><rect x="1172.3" y="389" width="17.7" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="1175.32" y="399.5" ></text>
+</g>
+<g >
+<title>dist (220,661,644 samples, 0.47%)</title><rect x="940.8" y="213" width="5.5" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="943.77" y="223.5" ></text>
+</g>
+<g >
+<title>solution_find_customer_by_id (179,947,879 samples, 0.38%)</title><rect x="980.7" y="277" width="4.5" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="983.69" y="287.5" ></text>
+</g>
+<g >
+<title>route_new (36,907,686 samples, 0.08%)</title><rect x="1112.7" y="261" width="0.9" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="1115.72" y="271.5" ></text>
+</g>
+<g >
+<title>fiber_is_cancelled (37,643,618 samples, 0.08%)</title><rect x="508.2" y="325" width="0.9" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="511.16" y="335.5" ></text>
+</g>
+<g >
+<title>dist (36,797,806 samples, 0.08%)</title><rect x="643.5" y="277" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="646.47" y="287.5" ></text>
+</g>
+<g >
+<title>modification_delta (3,315,685,357 samples, 7.00%)</title><rect x="1001.7" y="277" width="82.6" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="1004.65" y="287.5" >modificat..</text>
+</g>
+<g >
+<title>feasible_ejections_f (182,273,956 samples, 0.38%)</title><rect x="33.6" y="373" width="4.6" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="36.62" y="383.5" ></text>
+</g>
+<g >
+<title>c_penalty_exchange_penalty_delta (35,958,795 samples, 0.08%)</title><rect x="1006.2" y="261" width="0.8" height="15.0" fill="rgb(219,67,16)" rx="2" ry="2" />
+<text  x="1009.15" y="271.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (36,489,436 samples, 0.08%)</title><rect x="1171.4" y="389" width="0.9" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="1174.41" y="399.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (77,321,289 samples, 0.16%)</title><rect x="685.4" y="389" width="1.9" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="688.41" y="399.5" ></text>
+</g>
+<g >
+<title>void std::__introsort_loop&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*, std::allocator&lt;customer*&gt; &gt; &gt;, long, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (16,673,469 samples, 0.04%)</title><rect x="953.0" y="133" width="0.4" height="15.0" fill="rgb(239,156,37)" rx="2" ry="2" />
+<text  x="956.02" y="143.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (367,459,151 samples, 0.78%)</title><rect x="900.3" y="229" width="9.1" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="903.27" y="239.5" ></text>
+</g>
+<g >
+<title>route_delete (883,318,640 samples, 1.86%)</title><rect x="1148.3" y="245" width="22.0" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="1151.28" y="255.5" >r..</text>
+</g>
+<g >
+<title>modification_applicable (182,975,938 samples, 0.39%)</title><rect x="957.9" y="277" width="4.6" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="960.94" y="287.5" ></text>
+</g>
+<g >
+<title>rlist_move (72,454,267 samples, 0.15%)</title><rect x="703.7" y="261" width="1.8" height="15.0" fill="rgb(209,19,4)" rx="2" ry="2" />
+<text  x="706.70" y="271.5" ></text>
+</g>
+<g >
+<title>hrtimer_interrupt (34,187,951 samples, 0.07%)</title><rect x="361.9" y="213" width="0.8" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="364.88" y="223.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_eject_delta (36,797,806 samples, 0.08%)</title><rect x="643.5" y="309" width="0.9" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="646.47" y="319.5" ></text>
+</g>
+<g >
+<title>tw_penalty_two_opt_penalty_delta (184,386,771 samples, 0.39%)</title><rect x="971.5" y="261" width="4.6" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="974.54" y="271.5" ></text>
+</g>
+<g >
+<title>fiber_is_cancelled (184,897,248 samples, 0.39%)</title><rect x="38.2" y="373" width="4.6" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="41.17" y="383.5" ></text>
+</g>
+<g >
+<title>solution_meta_new (74,577,880 samples, 0.16%)</title><rect x="913.1" y="261" width="1.8" height="15.0" fill="rgb(253,221,53)" rx="2" ry="2" />
+<text  x="916.06" y="271.5" ></text>
+</g>
+<g >
+<title>fiber_is_cancelled (36,556,312 samples, 0.08%)</title><rect x="578.1" y="309" width="1.0" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="581.14" y="319.5" ></text>
+</g>
+<g >
+<title>small_stats_reset (37,889,584 samples, 0.08%)</title><rect x="502.7" y="293" width="0.9" height="15.0" fill="rgb(222,80,19)" rx="2" ry="2" />
+<text  x="505.65" y="303.5" ></text>
+</g>
+<g >
+<title>fiber_loop (23,108,579,111 samples, 48.79%)</title><rect x="75.0" y="357" width="575.7" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="77.99" y="367.5" >fiber_loop</text>
+</g>
+<g >
+<title>_int_malloc (220,558,820 samples, 0.47%)</title><rect x="1102.6" y="213" width="5.5" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="1105.59" y="223.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_penalty (37,193,608 samples, 0.08%)</title><rect x="1010.8" y="229" width="0.9" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="1013.78" y="239.5" ></text>
+</g>
+<g >
+<title>log_inline (2,823,736,771 samples, 5.96%)</title><rect x="370.0" y="277" width="70.3" height="15.0" fill="rgb(241,169,40)" rx="2" ry="2" />
+<text  x="372.99" y="287.5" >log_inl..</text>
+</g>
+<g >
+<title>customer_dup (37,039,198 samples, 0.08%)</title><rect x="988.9" y="261" width="0.9" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="991.87" y="271.5" ></text>
+</g>
+<g >
+<title>__libc_start_call_main (19,430,106,474 samples, 41.02%)</title><rect x="687.3" y="357" width="484.1" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="690.34" y="367.5" >__libc_start_call_main</text>
+</g>
+<g >
+<title>rlist_empty (72,602,779 samples, 0.15%)</title><rect x="978.9" y="277" width="1.8" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="981.88" y="287.5" ></text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta (681,302,717 samples, 1.44%)</title><rect x="1018.9" y="261" width="16.9" height="15.0" fill="rgb(241,165,39)" rx="2" ry="2" />
+<text  x="1021.86" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_delta (36,298,394 samples, 0.08%)</title><rect x="683.6" y="341" width="0.9" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="686.59" y="351.5" ></text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (35,335,325 samples, 0.07%)</title><rect x="499.0" y="293" width="0.9" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="502.00" y="303.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_replace_penalty (70,253,905 samples, 0.15%)</title><rect x="967.1" y="213" width="1.7" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="970.06" y="223.5" ></text>
+</g>
+<g >
+<title>route_new (35,572,475 samples, 0.08%)</title><rect x="912.2" y="261" width="0.9" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="915.18" y="271.5" ></text>
+</g>
+<g >
+<title>__bss_start (182,273,956 samples, 0.38%)</title><rect x="33.6" y="341" width="4.6" height="15.0" fill="rgb(249,202,48)" rx="2" ry="2" />
+<text  x="36.62" y="351.5" ></text>
+</g>
+<g >
+<title>malloc_consolidate (9,936,794 samples, 0.02%)</title><rect x="986.1" y="229" width="0.3" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="989.15" y="239.5" ></text>
+</g>
+<g >
+<title>customer_dup (405,264,959 samples, 0.86%)</title><rect x="1101.7" y="245" width="10.1" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="1104.67" y="255.5" ></text>
+</g>
+<g >
+<title>solution_delete (37,010,729 samples, 0.08%)</title><rect x="1147.4" y="261" width="0.9" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="1150.35" y="271.5" ></text>
+</g>
+<g >
+<title>route_init_penalty (38,370,399 samples, 0.08%)</title><rect x="637.1" y="293" width="1.0" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="640.09" y="303.5" ></text>
+</g>
+<g >
+<title>fiber_yield (37,198,717 samples, 0.08%)</title><rect x="628.1" y="309" width="0.9" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="631.05" y="319.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (657,545,282 samples, 1.39%)</title><rect x="871.8" y="245" width="16.3" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="874.76" y="255.5" ></text>
+</g>
+<g >
+<title>solution_modification_neighbourhood_f (5,904,767,569 samples, 12.47%)</title><rect x="503.6" y="341" width="147.1" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="506.60" y="351.5" >solution_modificat..</text>
+</g>
+<g >
+<title>_int_malloc (72,628,788 samples, 0.15%)</title><rect x="1095.3" y="245" width="1.8" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="1098.32" y="255.5" ></text>
+</g>
+<g >
+<title>dist (294,930,950 samples, 0.62%)</title><rect x="1050.7" y="197" width="7.3" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1053.68" y="207.5" ></text>
+</g>
+<g >
+<title>_int_free_maybe_consolidate (143,928,472 samples, 0.30%)</title><rect x="1158.5" y="213" width="3.6" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="1161.55" y="223.5" ></text>
+</g>
+<g >
+<title>rlist_next (37,522,996 samples, 0.08%)</title><rect x="962.5" y="261" width="0.9" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="965.50" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta (70,253,905 samples, 0.15%)</title><rect x="967.1" y="261" width="1.7" height="15.0" fill="rgb(241,165,39)" rx="2" ry="2" />
+<text  x="970.06" y="271.5" ></text>
+</g>
+<g >
+<title>intra_route_out_relocate_data_destroy (35,171,023 samples, 0.07%)</title><rect x="645.3" y="309" width="0.9" height="15.0" fill="rgb(214,44,10)" rx="2" ry="2" />
+<text  x="648.31" y="319.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_replace_delta (70,253,905 samples, 0.15%)</title><rect x="967.1" y="229" width="1.7" height="15.0" fill="rgb(231,119,28)" rx="2" ry="2" />
+<text  x="970.06" y="239.5" ></text>
+</g>
+<g >
+<title>_int_malloc (37,039,198 samples, 0.08%)</title><rect x="988.9" y="229" width="0.9" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="991.87" y="239.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (37,219,296 samples, 0.08%)</title><rect x="644.4" y="309" width="0.9" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="647.38" y="319.5" ></text>
+</g>
+<g >
+<title>alloc_perturb (19,036,831 samples, 0.04%)</title><rect x="898.0" y="213" width="0.5" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="900.98" y="223.5" ></text>
+</g>
+<g >
+<title>__unguarded_partition&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (16,673,469 samples, 0.04%)</title><rect x="953.0" y="85" width="0.4" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="956.02" y="95.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (48,913,255 samples, 0.10%)</title><rect x="985.2" y="261" width="1.2" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="988.18" y="271.5" ></text>
+</g>
+<g >
+<title>operator (130,040,456 samples, 0.27%)</title><rect x="946.3" y="117" width="3.2" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="949.27" y="127.5" ></text>
+</g>
+<g >
+<title>intra_route_out_relocate_data_create (292,634,690 samples, 0.62%)</title><rect x="637.1" y="325" width="7.3" height="15.0" fill="rgb(233,131,31)" rx="2" ry="2" />
+<text  x="640.09" y="335.5" ></text>
+</g>
+<g >
+<title>malloc_consolidate (36,031,709 samples, 0.08%)</title><rect x="893.5" y="229" width="0.9" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="896.48" y="239.5" ></text>
+</g>
+<g >
+<title>void std::__introsort_loop&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*, std::allocator&lt;customer*&gt; &gt; &gt;, long, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (16,673,469 samples, 0.04%)</title><rect x="953.0" y="149" width="0.4" height="15.0" fill="rgb(239,156,37)" rx="2" ry="2" />
+<text  x="956.02" y="159.5" ></text>
+</g>
+<g >
+<title>rlist_first (35,899,007 samples, 0.08%)</title><rect x="470.1" y="325" width="0.9" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="473.11" y="335.5" ></text>
+</g>
+<g >
+<title>dist (109,465,882 samples, 0.23%)</title><rect x="651.6" y="357" width="2.7" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="654.59" y="367.5" ></text>
+</g>
+<g >
+<title>solution_move (920,329,369 samples, 1.94%)</title><rect x="1147.4" y="277" width="22.9" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="1150.35" y="287.5" >s..</text>
+</g>
+<g >
+<title>rlist_last (35,174,665 samples, 0.07%)</title><rect x="1017.1" y="229" width="0.9" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="1020.09" y="239.5" ></text>
+</g>
+<g >
+<title>_int_free_create_chunk (145,162,335 samples, 0.31%)</title><rect x="1164.9" y="197" width="3.6" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1167.86" y="207.5" ></text>
+</g>
+<g >
+<title>_int_malloc (68,878,150 samples, 0.15%)</title><rect x="892.7" y="245" width="1.7" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="895.66" y="255.5" ></text>
+</g>
+<g >
+<title>dist (182,273,956 samples, 0.38%)</title><rect x="33.6" y="357" width="4.6" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="36.62" y="367.5" ></text>
+</g>
+<g >
+<title>dist (35,952,147 samples, 0.08%)</title><rect x="970.6" y="197" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="973.64" y="207.5" ></text>
+</g>
+<g >
+<title>rlist_prev (69,286,841 samples, 0.15%)</title><rect x="1145.6" y="213" width="1.8" height="15.0" fill="rgb(220,71,17)" rx="2" ry="2" />
+<text  x="1148.63" y="223.5" ></text>
+</g>
+<g >
+<title>dist (35,968,280 samples, 0.08%)</title><rect x="635.4" y="293" width="0.8" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="638.35" y="303.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (182,397,561 samples, 0.39%)</title><rect x="1097.1" y="245" width="4.6" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1100.12" y="255.5" ></text>
+</g>
+<g >
+<title>malloc_consolidate (36,530,693 samples, 0.08%)</title><rect x="1096.2" y="229" width="0.9" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="1099.21" y="239.5" ></text>
+</g>
+<g >
+<title>perturb (1,274,178,560 samples, 2.69%)</title><rect x="953.4" y="293" width="31.8" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="956.43" y="303.5" >pe..</text>
+</g>
+<g >
+<title>c_penalty_get_penalty (35,958,795 samples, 0.08%)</title><rect x="1006.2" y="229" width="0.8" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="1009.15" y="239.5" ></text>
+</g>
+<g >
+<title>modification_new (109,728,383 samples, 0.23%)</title><rect x="42.8" y="373" width="2.7" height="15.0" fill="rgb(214,41,9)" rx="2" ry="2" />
+<text  x="45.77" y="383.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_penalty (33,886,913 samples, 0.07%)</title><rect x="636.2" y="261" width="0.9" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="639.25" y="271.5" ></text>
+</g>
+<g >
+<title>__pow (144,296,901 samples, 0.30%)</title><rect x="29.1" y="373" width="3.6" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="32.11" y="383.5" ></text>
+</g>
+<g >
+<title>exp_inline (3,860,518,363 samples, 8.15%)</title><rect x="273.8" y="277" width="96.2" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="276.82" y="287.5" >exp_inline</text>
+</g>
+<g >
+<title>__pow_finite@GLIBC_2.15@plt (293,567,328 samples, 0.62%)</title><rect x="451.9" y="293" width="7.3" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="454.87" y="303.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta (36,298,394 samples, 0.08%)</title><rect x="683.6" y="373" width="0.9" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="686.59" y="383.5" ></text>
+</g>
+<g >
+<title>_int_malloc (258,877,599 samples, 0.55%)</title><rect x="903.0" y="213" width="6.4" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="905.97" y="223.5" ></text>
+</g>
+<g >
+<title>_int_malloc (92,201,879 samples, 0.19%)</title><rect x="896.2" y="229" width="2.3" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="899.16" y="239.5" ></text>
+</g>
+<g >
+<title>rlist_del (35,500,576 samples, 0.07%)</title><rect x="704.6" y="245" width="0.9" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="707.62" y="255.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (163,438,799 samples, 0.35%)</title><rect x="894.4" y="245" width="4.1" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="897.38" y="255.5" ></text>
+</g>
+<g >
+<title>route_delete (48,913,255 samples, 0.10%)</title><rect x="985.2" y="277" width="1.2" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="988.18" y="287.5" ></text>
+</g>
+<g >
+<title>c_penalty_init (1,599,971,442 samples, 3.38%)</title><rect x="706.4" y="245" width="39.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="709.44" y="255.5" >c_p..</text>
+</g>
+<g >
+<title>solution_dup (1,185,177,333 samples, 2.50%)</title><rect x="890.0" y="277" width="29.5" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="893.01" y="287.5" >so..</text>
+</g>
+<g >
+<title>route_init_penalty (110,568,680 samples, 0.23%)</title><rect x="909.4" y="261" width="2.8" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="912.42" y="271.5" ></text>
+</g>
+<g >
+<title>__unguarded_insertion_sort&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (166,805,384 samples, 0.35%)</title><rect x="946.3" y="165" width="4.1" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="949.27" y="175.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_penalty (36,224,011 samples, 0.08%)</title><rect x="1019.8" y="213" width="0.9" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1022.77" y="223.5" ></text>
+</g>
+<g >
+<title>feasible_ejections_f (144,885,627 samples, 0.31%)</title><rect x="650.7" y="373" width="3.6" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="653.70" y="383.5" ></text>
+</g>
+<g >
+<title>__sort&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (166,805,384 samples, 0.35%)</title><rect x="946.3" y="197" width="4.1" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="949.27" y="207.5" ></text>
+</g>
+<g >
+<title>delete_route (19,421,550,538 samples, 41.01%)</title><rect x="687.3" y="309" width="483.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="690.34" y="319.5" >delete_route</text>
+</g>
+<g >
+<title>tw_penalty_get_eject_delta (819,192,565 samples, 1.73%)</title><rect x="1037.6" y="229" width="20.4" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="1040.62" y="239.5" ></text>
+</g>
+<g >
+<title>_int_free_merge_chunk (108,897,570 samples, 0.23%)</title><rect x="1089.8" y="229" width="2.7" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="1092.78" y="239.5" ></text>
+</g>
+<g >
+<title>routes (47,363,789,785 samples, 100.00%)</title><rect x="10.0" y="405" width="1180.0" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="13.00" y="415.5" >routes</text>
+</g>
+<g >
+<title>solution_delete (48,913,255 samples, 0.10%)</title><rect x="985.2" y="293" width="1.2" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="988.18" y="303.5" ></text>
+</g>
+<g >
+<title>c_penalty_out_relocate_penalty_delta (293,994,317 samples, 0.62%)</title><rect x="1007.0" y="261" width="7.4" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="1010.05" y="271.5" ></text>
+</g>
+<g >
+<title>rlist_create (35,863,838 samples, 0.08%)</title><rect x="1110.9" y="229" width="0.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="1113.87" y="239.5" ></text>
+</g>
+<g >
+<title>fiber_c_invoke (37,272,008 samples, 0.08%)</title><rect x="501.7" y="341" width="1.0" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="504.72" y="351.5" ></text>
+</g>
+<g >
+<title>__pow (11,480,601,919 samples, 24.24%)</title><rect x="173.2" y="309" width="286.0" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="176.16" y="319.5" >__pow</text>
+</g>
+<g >
+<title>intra_route_modifications (397,763,580 samples, 0.84%)</title><rect x="627.2" y="325" width="9.9" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="630.18" y="335.5" ></text>
+</g>
+<g >
+<title>__final_insertion_sort&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (166,805,384 samples, 0.35%)</title><rect x="946.3" y="181" width="4.1" height="15.0" fill="rgb(254,225,54)" rx="2" ry="2" />
+<text  x="949.27" y="191.5" ></text>
+</g>
+<g >
+<title>modification_delta (841,090,116 samples, 1.78%)</title><rect x="1126.4" y="261" width="21.0" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="1129.40" y="271.5" ></text>
+</g>
+<g >
+<title>fiber_loop (36,782,968 samples, 0.08%)</title><rect x="654.3" y="373" width="0.9" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="657.31" y="383.5" ></text>
+</g>
+<g >
+<title>problem_customers_dup (37,039,198 samples, 0.08%)</title><rect x="988.9" y="277" width="0.9" height="15.0" fill="rgb(206,4,1)" rx="2" ry="2" />
+<text  x="991.87" y="287.5" ></text>
+</g>
+<g >
+<title>task_tick_fair (34,187,951 samples, 0.07%)</title><rect x="361.9" y="133" width="0.8" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="364.88" y="143.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (35,572,475 samples, 0.08%)</title><rect x="912.2" y="245" width="0.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="915.18" y="255.5" ></text>
+</g>
+<g >
+<title>modification_delta (218,142,734 samples, 0.46%)</title><rect x="658.8" y="373" width="5.5" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="661.82" y="383.5" ></text>
+</g>
+<g >
+<title>modification_delta (330,249,885 samples, 0.70%)</title><rect x="49.2" y="373" width="8.2" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="52.16" y="383.5" ></text>
+</g>
+<g >
+<title>rlist_del (37,651,169 samples, 0.08%)</title><rect x="888.1" y="245" width="1.0" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="891.14" y="255.5" ></text>
+</g>
+<g >
+<title>dist (37,335,113 samples, 0.08%)</title><rect x="631.7" y="261" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="634.65" y="271.5" ></text>
+</g>
+<g >
+<title>solution_dup (229,989,145 samples, 0.49%)</title><rect x="986.4" y="293" width="5.7" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="989.39" y="303.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta_fast (109,449,486 samples, 0.23%)</title><rect x="968.8" y="245" width="2.7" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="971.81" y="255.5" ></text>
+</g>
+<g >
+<title>pseudo_random_in_range (110,347,297 samples, 0.23%)</title><rect x="976.1" y="277" width="2.8" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="979.13" y="287.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_insert_penalty (5,843,027 samples, 0.01%)</title><rect x="937.9" y="229" width="0.1" height="15.0" fill="rgb(248,200,47)" rx="2" ry="2" />
+<text  x="940.90" y="239.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_replace_penalty (608,684,329 samples, 1.29%)</title><rect x="1020.7" y="213" width="15.1" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="1023.67" y="223.5" ></text>
+</g>
+<g >
+<title>sysvec_thermal (37,089,980 samples, 0.08%)</title><rect x="362.7" y="245" width="1.0" height="15.0" fill="rgb(246,189,45)" rx="2" ry="2" />
+<text  x="365.73" y="255.5" ></text>
+</g>
+<g >
+<title>problem_customers_dup (405,264,959 samples, 0.86%)</title><rect x="1101.7" y="261" width="10.1" height="15.0" fill="rgb(206,4,1)" rx="2" ry="2" />
+<text  x="1104.67" y="271.5" ></text>
+</g>
+<g >
+<title>checkint (659,392,543 samples, 1.39%)</title><rect x="257.4" y="277" width="16.4" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="260.39" y="287.5" ></text>
+</g>
+<g >
+<title>rlist_move_tail (823,544,792 samples, 1.74%)</title><rect x="479.4" y="325" width="20.5" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="482.36" y="335.5" ></text>
+</g>
+<g >
+<title>tw_penalty_two_opt_penalty_delta (35,357,887 samples, 0.07%)</title><rect x="28.2" y="373" width="0.9" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="31.23" y="383.5" ></text>
+</g>
+<g >
+<title>inter_route_modifications (4,739,878,823 samples, 10.01%)</title><rect x="509.1" y="325" width="118.1" height="15.0" fill="rgb(251,211,50)" rx="2" ry="2" />
+<text  x="512.10" y="335.5" >inter_route_mo..</text>
+</g>
+<g >
+<title>modification_delta (110,438,051 samples, 0.23%)</title><rect x="21.0" y="373" width="2.8" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="24.01" y="383.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (113,211,002 samples, 0.24%)</title><rect x="66.5" y="373" width="2.9" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="69.54" y="383.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (73,368,633 samples, 0.15%)</title><rect x="641.6" y="277" width="1.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="644.64" y="287.5" ></text>
+</g>
+<g >
+<title>insert_eject (9,320,036,597 samples, 19.68%)</title><rect x="687.3" y="293" width="232.2" height="15.0" fill="rgb(251,213,50)" rx="2" ry="2" />
+<text  x="690.34" y="303.5" >insert_eject</text>
+</g>
+<g >
+<title>rlist_add_tail (109,594,054 samples, 0.23%)</title><rect x="467.4" y="325" width="2.7" height="15.0" fill="rgb(211,27,6)" rx="2" ry="2" />
+<text  x="470.37" y="335.5" ></text>
+</g>
+<g >
+<title>fiber_yield (111,913,408 samples, 0.24%)</title><rect x="579.1" y="309" width="2.7" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="582.06" y="319.5" ></text>
+</g>
+<g >
+<title>route_delete (369,157,882 samples, 0.78%)</title><rect x="1084.3" y="261" width="9.2" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="1087.26" y="271.5" ></text>
+</g>
+<g >
+<title>__sysvec_thermal (37,089,980 samples, 0.08%)</title><rect x="362.7" y="229" width="1.0" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="365.73" y="239.5" ></text>
+</g>
+<g >
+<title>intra_route_out_relocate_init_delta (144,554,091 samples, 0.31%)</title><rect x="629.0" y="309" width="3.6" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="631.98" y="319.5" ></text>
+</g>
+<g >
+<title>rlist_add (36,953,691 samples, 0.08%)</title><rect x="703.7" y="245" width="0.9" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="706.70" y="255.5" ></text>
+</g>
+<g >
+<title>solution_delete (732,508,226 samples, 1.55%)</title><rect x="871.8" y="277" width="18.2" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="874.76" y="287.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (68,878,150 samples, 0.15%)</title><rect x="892.7" y="261" width="1.7" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="895.66" y="271.5" ></text>
+</g>
+<g >
+<title>operator (16,673,469 samples, 0.04%)</title><rect x="953.0" y="69" width="0.4" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="956.02" y="79.5" ></text>
+</g>
+<g >
+<title>perturb (73,459,840 samples, 0.16%)</title><rect x="57.4" y="373" width="1.8" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="60.39" y="383.5" ></text>
+</g>
+<g >
+<title>rlist_add (37,160,603 samples, 0.08%)</title><rect x="697.4" y="245" width="0.9" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="700.36" y="255.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_penalty (689,341,623 samples, 1.46%)</title><rect x="1059.0" y="213" width="17.1" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1061.96" y="223.5" ></text>
+</g>
+<g >
+<title>customer_dup (146,578,531 samples, 0.31%)</title><rect x="639.8" y="293" width="3.7" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="642.82" y="303.5" ></text>
+</g>
+<g >
+<title>_int_free_maybe_consolidate (110,475,518 samples, 0.23%)</title><rect x="877.1" y="229" width="2.8" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="880.11" y="239.5" ></text>
+</g>
+<g >
+<title>rlist_prev (219,141,752 samples, 0.46%)</title><rect x="866.3" y="245" width="5.5" height="15.0" fill="rgb(220,71,17)" rx="2" ry="2" />
+<text  x="869.30" y="255.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta (1,617,442,560 samples, 3.41%)</title><rect x="1035.8" y="261" width="40.3" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="1038.83" y="271.5" >tw_..</text>
+</g>
+<g >
+<title>intra_route_out_relocate_data_destroy (37,219,296 samples, 0.08%)</title><rect x="644.4" y="325" width="0.9" height="15.0" fill="rgb(214,44,10)" rx="2" ry="2" />
+<text  x="647.38" y="335.5" ></text>
+</g>
+<g >
+<title>_int_free (37,010,729 samples, 0.08%)</title><rect x="1147.4" y="229" width="0.9" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="1150.35" y="239.5" ></text>
+</g>
+<g >
+<title>void std::__convert_to_v&lt;double&gt; (8,555,936 samples, 0.02%)</title><rect x="1171.2" y="261" width="0.2" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="1174.20" y="271.5" ></text>
+</g>
+<g >
+<title>operator (103,896,722 samples, 0.22%)</title><rect x="950.4" y="117" width="2.6" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="953.43" y="127.5" ></text>
+</g>
+<g >
+<title>solution_find_feasible_insertion (1,360,632,876 samples, 2.87%)</title><rect x="919.5" y="277" width="33.9" height="15.0" fill="rgb(241,169,40)" rx="2" ry="2" />
+<text  x="922.53" y="287.5" >so..</text>
+</g>
+<g >
+<title>fiber_new_ex (37,160,603 samples, 0.08%)</title><rect x="697.4" y="277" width="0.9" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="700.36" y="287.5" ></text>
+</g>
+<g >
+<title>eama_solver_solve (19,421,550,538 samples, 41.01%)</title><rect x="687.3" y="325" width="483.9" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="690.34" y="335.5" >eama_solver_solve</text>
+</g>
+<g >
+<title>customer_dup (440,332,881 samples, 0.93%)</title><rect x="898.5" y="245" width="10.9" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="901.45" y="255.5" ></text>
+</g>
+<g >
+<title>solution_dup (17,219,130 samples, 0.04%)</title><rect x="990.7" y="277" width="0.4" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="993.66" y="287.5" ></text>
+</g>
+<g >
+<title>customer_dup (182,397,561 samples, 0.39%)</title><rect x="1097.1" y="261" width="4.6" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="1100.12" y="271.5" ></text>
+</g>
+<g >
+<title>top12 (462,480,789 samples, 0.98%)</title><rect x="440.3" y="277" width="11.6" height="15.0" fill="rgb(234,133,32)" rx="2" ry="2" />
+<text  x="443.34" y="287.5" ></text>
+</g>
+<g >
+<title>c_penalty_two_opt_penalty_delta (37,935,396 samples, 0.08%)</title><rect x="15.5" y="373" width="0.9" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="18.50" y="383.5" ></text>
+</g>
+<g >
+<title>__libc_start_main_impl (19,430,106,474 samples, 41.02%)</title><rect x="687.3" y="373" width="484.1" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="690.34" y="383.5" >__libc_start_main_impl</text>
+</g>
+<g >
+<title>solution_global_init (287,375,575 samples, 0.61%)</title><rect x="946.3" y="261" width="7.1" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="949.27" y="271.5" ></text>
+</g>
+<g >
+<title>fiber_new_ex (36,796,514 samples, 0.08%)</title><rect x="20.1" y="373" width="0.9" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="23.09" y="383.5" ></text>
+</g>
+<g >
+<title>rlist_empty (71,411,089 samples, 0.15%)</title><rect x="646.2" y="325" width="1.8" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="649.19" y="335.5" ></text>
+</g>
+<g >
+<title>all (47,363,789,785 samples, 100%)</title><rect x="10.0" y="421" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="431.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_replace_delta (33,886,913 samples, 0.07%)</title><rect x="636.2" y="277" width="0.9" height="15.0" fill="rgb(231,119,28)" rx="2" ry="2" />
+<text  x="639.25" y="287.5" ></text>
+</g>
+<g >
+<title>modification_new (290,080,071 samples, 0.61%)</title><rect x="620.0" y="309" width="7.2" height="15.0" fill="rgb(214,41,9)" rx="2" ry="2" />
+<text  x="622.96" y="319.5" ></text>
+</g>
+<g >
+<title>tw_penalty_init (5,035,568,320 samples, 10.63%)</title><rect x="746.3" y="261" width="125.5" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="749.30" y="271.5" >tw_penalty_init</text>
+</g>
+<g >
+<title>__update_load_avg_se (34,187,951 samples, 0.07%)</title><rect x="361.9" y="101" width="0.8" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="364.88" y="111.5" ></text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta_fast (681,302,717 samples, 1.44%)</title><rect x="1018.9" y="245" width="16.9" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="1021.86" y="255.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_penalty (36,531,774 samples, 0.08%)</title><rect x="1013.5" y="229" width="0.9" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="1016.46" y="239.5" ></text>
+</g>
+<g >
+<title>sort&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, init_neighbours_sorted (287,375,575 samples, 0.61%)</title><rect x="946.3" y="213" width="7.1" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="949.27" y="223.5" ></text>
+</g>
+<g >
+<title>dist (109,351,557 samples, 0.23%)</title><rect x="1121.0" y="245" width="2.7" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1124.00" y="255.5" ></text>
+</g>
+<g >
+<title>modification_apply (109,258,353 samples, 0.23%)</title><rect x="637.1" y="309" width="2.7" height="15.0" fill="rgb(242,174,41)" rx="2" ry="2" />
+<text  x="640.09" y="319.5" ></text>
+</g>
+<g >
+<title>rlist_del (152,519,997 samples, 0.32%)</title><rect x="475.6" y="309" width="3.8" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="478.56" y="319.5" ></text>
+</g>
+<g >
+<title>modification_delta (482,563,764 samples, 1.02%)</title><rect x="934.2" y="261" width="12.1" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="937.25" y="271.5" ></text>
+</g>
+<g >
+<title>rlist_move (300,310,247 samples, 0.63%)</title><rect x="471.9" y="325" width="7.5" height="15.0" fill="rgb(209,19,4)" rx="2" ry="2" />
+<text  x="474.88" y="335.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_eject_penalty (75,979,318 samples, 0.16%)</title><rect x="1008.9" y="229" width="1.9" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="1011.89" y="239.5" ></text>
+</g>
+<g >
+<title>[routes] (844,488,448 samples, 1.78%)</title><rect x="45.5" y="389" width="21.0" height="15.0" fill="rgb(220,73,17)" rx="2" ry="2" />
+<text  x="48.51" y="399.5" ></text>
+</g>
+<g >
+<title>fiber_call_impl (161,446,786 samples, 0.34%)</title><rect x="997.6" y="261" width="4.1" height="15.0" fill="rgb(211,32,7)" rx="2" ry="2" />
+<text  x="1000.63" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_one_opt_penalty (290,385,138 samples, 0.61%)</title><rect x="1077.0" y="245" width="7.3" height="15.0" fill="rgb(237,147,35)" rx="2" ry="2" />
+<text  x="1080.02" y="255.5" ></text>
+</g>
+<g >
+<title>rlist_last (72,656,530 samples, 0.15%)</title><rect x="744.5" y="229" width="1.8" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="747.49" y="239.5" ></text>
+</g>
+<g >
+<title>operator (103,896,722 samples, 0.22%)</title><rect x="950.4" y="133" width="2.6" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="953.43" y="143.5" ></text>
+</g>
+<g >
+<title>coro_transfer (146,188,866 samples, 0.31%)</title><rect x="16.4" y="373" width="3.7" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="19.45" y="383.5" ></text>
+</g>
+<g >
+<title>tw_penalty_init (185,082,459 samples, 0.39%)</title><rect x="914.9" y="261" width="4.6" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="917.92" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta_fast (33,886,913 samples, 0.07%)</title><rect x="636.2" y="293" width="0.9" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="639.25" y="303.5" ></text>
+</g>
+<g >
+<title>_int_free_maybe_consolidate (36,569,456 samples, 0.08%)</title><rect x="73.1" y="373" width="0.9" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="76.06" y="383.5" ></text>
+</g>
+<g >
+<title>solution_move (883,318,640 samples, 1.86%)</title><rect x="1148.3" y="261" width="22.0" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="1151.28" y="271.5" >s..</text>
+</g>
+<g >
+<title>customer_dup (99,278,887 samples, 0.21%)</title><rect x="986.4" y="277" width="2.5" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="989.39" y="287.5" ></text>
+</g>
+<g >
+<title>dist (103,896,722 samples, 0.22%)</title><rect x="950.4" y="101" width="2.6" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="953.43" y="111.5" ></text>
+</g>
+<g >
+<title>modification_applicable (1,529,837,768 samples, 3.23%)</title><rect x="581.8" y="309" width="38.2" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="584.84" y="319.5" >mod..</text>
+</g>
+<g >
+<title>tw_penalty_two_opt_penalty_delta (326,240,560 samples, 0.69%)</title><rect x="1076.1" y="261" width="8.2" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="1079.13" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_penalty (256,463,572 samples, 0.54%)</title><rect x="939.9" y="229" width="6.4" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="942.88" y="239.5" ></text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta (35,834,881 samples, 0.08%)</title><rect x="24.7" y="373" width="0.9" height="15.0" fill="rgb(241,165,39)" rx="2" ry="2" />
+<text  x="27.68" y="383.5" ></text>
+</g>
+<g >
+<title>__pow (148,382,712 samples, 0.31%)</title><rect x="69.4" y="373" width="3.7" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="72.37" y="383.5" ></text>
+</g>
+<g >
+<title>_int_free_merge_chunk (254,754,043 samples, 0.54%)</title><rect x="1162.1" y="213" width="6.4" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="1165.13" y="223.5" ></text>
+</g>
+<g >
+<title>squeeze (7,187,800,105 samples, 15.18%)</title><rect x="992.1" y="293" width="179.1" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="995.12" y="303.5" >squeeze</text>
+</g>
+<g >
+<title>_int_free (143,372,351 samples, 0.30%)</title><rect x="873.5" y="229" width="3.6" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="876.54" y="239.5" ></text>
+</g>
+<g >
+<title>__sysvec_apic_timer_interrupt (34,187,951 samples, 0.07%)</title><rect x="361.9" y="229" width="0.8" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="364.88" y="239.5" ></text>
+</g>
+<g >
+<title>asuint64 (109,142,644 samples, 0.23%)</title><rect x="367.3" y="245" width="2.7" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="370.28" y="255.5" ></text>
+</g>
+<g >
+<title>rlist_del (38,760,042 samples, 0.08%)</title><rect x="1092.5" y="245" width="1.0" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="1095.49" y="255.5" ></text>
+</g>
+<g >
+<title>fiber_yield_impl (111,913,408 samples, 0.24%)</title><rect x="579.1" y="293" width="2.7" height="15.0" fill="rgb(217,57,13)" rx="2" ry="2" />
+<text  x="582.06" y="303.5" ></text>
+</g>
+<g >
+<title>tw_penalty_init (70,887,954 samples, 0.15%)</title><rect x="638.1" y="293" width="1.7" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="641.05" y="303.5" ></text>
+</g>
+<g >
+<title>dist (35,532,202 samples, 0.08%)</title><rect x="967.9" y="197" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="970.93" y="207.5" ></text>
+</g>
+<g >
+<title>tw_penalty_exchange_penalty_delta_fast (70,253,905 samples, 0.15%)</title><rect x="967.1" y="245" width="1.7" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="970.06" y="255.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (73,833,200 samples, 0.16%)</title><rect x="10.0" y="373" width="1.8" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="13.00" y="383.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta_fast (36,298,394 samples, 0.08%)</title><rect x="683.6" y="357" width="0.9" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="686.59" y="367.5" ></text>
+</g>
+<g >
+<title>dist (36,671,244 samples, 0.08%)</title><rect x="1170.3" y="261" width="0.9" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1173.28" y="271.5" ></text>
+</g>
+<g >
+<title>feasible_ejections_f (17,128,649,950 samples, 36.16%)</title><rect x="75.0" y="341" width="426.7" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="77.99" y="351.5" >feasible_ejections_f</text>
+</g>
+<g >
+<title>modification_new (36,749,135 samples, 0.08%)</title><rect x="32.7" y="373" width="0.9" height="15.0" fill="rgb(214,41,9)" rx="2" ry="2" />
+<text  x="35.71" y="383.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_replace_delta (35,958,795 samples, 0.08%)</title><rect x="1006.2" y="245" width="0.8" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="1009.15" y="255.5" ></text>
+</g>
+<g >
+<title>modification_delta (509,906,665 samples, 1.08%)</title><rect x="963.4" y="277" width="12.7" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="966.43" y="287.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (332,608,022 samples, 0.70%)</title><rect x="1102.6" y="229" width="8.3" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1105.59" y="239.5" ></text>
+</g>
+<g >
+<title>native_read_msr (37,089,980 samples, 0.08%)</title><rect x="362.7" y="181" width="1.0" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="365.73" y="191.5" ></text>
+</g>
+<g >
+<title>__sysvec_apic_timer_interrupt (35,335,325 samples, 0.07%)</title><rect x="499.0" y="277" width="0.9" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="502.00" y="287.5" ></text>
+</g>
+<g >
+<title>problem_customers_dup (440,332,881 samples, 0.93%)</title><rect x="898.5" y="261" width="10.9" height="15.0" fill="rgb(206,4,1)" rx="2" ry="2" />
+<text  x="901.45" y="271.5" ></text>
+</g>
+<g >
+<title>update_process_times (34,187,951 samples, 0.07%)</title><rect x="361.9" y="165" width="0.8" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="364.88" y="175.5" ></text>
+</g>
+<g >
+<title>solution_modification_neighbourhood_f (592,483,583 samples, 1.25%)</title><rect x="667.9" y="373" width="14.8" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="670.95" y="383.5" ></text>
+</g>
+<g >
+<title>__GI___libc_free (37,010,729 samples, 0.08%)</title><rect x="1147.4" y="245" width="0.9" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1150.35" y="255.5" ></text>
+</g>
+<g >
+<title>checked_request2size (36,252,696 samples, 0.08%)</title><rect x="908.5" y="197" width="0.9" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="911.52" y="207.5" ></text>
+</g>
+<g >
+<title>pseudo_random_in_range (73,230,052 samples, 0.15%)</title><rect x="664.3" y="373" width="1.8" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="667.26" y="383.5" ></text>
+</g>
+<g >
+<title>_int_malloc (36,907,686 samples, 0.08%)</title><rect x="1112.7" y="229" width="0.9" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="1115.72" y="239.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (34,187,951 samples, 0.07%)</title><rect x="361.9" y="261" width="0.8" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="364.88" y="271.5" ></text>
+</g>
+<g >
+<title>std::istream::operator&gt;&gt; (8,555,936 samples, 0.02%)</title><rect x="1171.2" y="309" width="0.2" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="1174.20" y="319.5" ></text>
+</g>
+<g >
+<title>dist (220,760,055 samples, 0.47%)</title><rect x="1070.6" y="197" width="5.5" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1073.63" y="207.5" ></text>
+</g>
+<g >
+<title>solution_delete (369,157,882 samples, 0.78%)</title><rect x="1084.3" y="277" width="9.2" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="1087.26" y="287.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_insert_delta (36,193,896 samples, 0.08%)</title><rect x="12.7" y="373" width="0.9" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="15.72" y="383.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (35,335,325 samples, 0.07%)</title><rect x="499.0" y="309" width="0.9" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="502.00" y="319.5" ></text>
+</g>
+<g >
+<title>__unguarded_linear_insert&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Val_comp_iter&lt;init_neighbours_sorted (130,040,456 samples, 0.27%)</title><rect x="946.3" y="149" width="3.2" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="949.27" y="159.5" ></text>
+</g>
+<g >
+<title>init_neighbours_sorted (36,764,928 samples, 0.08%)</title><rect x="949.5" y="149" width="0.9" height="15.0" fill="rgb(211,31,7)" rx="2" ry="2" />
+<text  x="952.51" y="159.5" ></text>
+</g>
+<g >
+<title>coro_init (23,108,579,111 samples, 48.79%)</title><rect x="75.0" y="373" width="575.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="77.99" y="383.5" >coro_init</text>
+</g>
+<g >
+<title>route_dup (146,578,531 samples, 0.31%)</title><rect x="639.8" y="309" width="3.7" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="642.82" y="319.5" ></text>
+</g>
+<g >
+<title>c_penalty_init (38,401,751 samples, 0.08%)</title><rect x="1111.8" y="245" width="0.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="1114.77" y="255.5" ></text>
+</g>
+<g >
+<title>dist (74,860,907 samples, 0.16%)</title><rect x="974.3" y="229" width="1.8" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="977.27" y="239.5" ></text>
+</g>
+<g >
+<title>inter_route_modifications (483,326,162 samples, 1.02%)</title><rect x="670.7" y="357" width="12.0" height="15.0" fill="rgb(251,211,50)" rx="2" ry="2" />
+<text  x="673.67" y="367.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_eject_penalty (819,192,565 samples, 1.73%)</title><rect x="1037.6" y="213" width="20.4" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="1040.62" y="223.5" ></text>
+</g>
+<g >
+<title>_int_malloc (145,265,601 samples, 0.31%)</title><rect x="1098.0" y="229" width="3.7" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="1101.05" y="239.5" ></text>
+</g>
+<g >
+<title>c_penalty_two_opt_penalty_delta (36,800,877 samples, 0.08%)</title><rect x="966.1" y="261" width="1.0" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="969.15" y="271.5" ></text>
+</g>
+<g >
+<title>__unguarded_partition&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (103,896,722 samples, 0.22%)</title><rect x="950.4" y="149" width="2.6" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="953.43" y="159.5" ></text>
+</g>
+<g >
+<title>checked_request2size (34,740,312 samples, 0.07%)</title><rect x="989.8" y="245" width="0.9" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="992.79" y="255.5" ></text>
+</g>
+<g >
+<title>main (19,430,106,474 samples, 41.02%)</title><rect x="687.3" y="341" width="484.1" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
+<text  x="690.34" y="351.5" >main</text>
+</g>
+<g >
+<title>dist (16,673,469 samples, 0.04%)</title><rect x="953.0" y="37" width="0.4" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="956.02" y="47.5" ></text>
+</g>
+<g >
+<title>tw_penalty_out_relocate_penalty_delta (106,856,246 samples, 0.23%)</title><rect x="25.6" y="373" width="2.6" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="28.57" y="383.5" ></text>
+</g>
+<g >
+<title>top12 (254,595,914 samples, 0.54%)</title><rect x="363.7" y="261" width="6.3" height="15.0" fill="rgb(234,133,32)" rx="2" ry="2" />
+<text  x="366.65" y="271.5" ></text>
+</g>
+<g >
+<title>dist (12,941,976,884 samples, 27.32%)</title><rect x="144.9" y="325" width="322.5" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="147.94" y="335.5" >dist</text>
+</g>
+<g >
+<title>__introsort_loop&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, long int, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (16,673,469 samples, 0.04%)</title><rect x="953.0" y="117" width="0.4" height="15.0" fill="rgb(242,171,40)" rx="2" ry="2" />
+<text  x="956.02" y="127.5" ></text>
+</g>
+<g >
+<title>customer_dup (163,438,799 samples, 0.35%)</title><rect x="894.4" y="261" width="4.1" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="897.38" y="271.5" ></text>
+</g>
+<g >
+<title>solution_modification_neighbourhood_f (109,882,424 samples, 0.23%)</title><rect x="648.0" y="325" width="2.7" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="650.97" y="335.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_delta (292,272,391 samples, 0.62%)</title><rect x="939.0" y="245" width="7.3" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="941.99" y="255.5" ></text>
+</g>
+<g >
+<title>void std::__introsort_loop&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*, std::allocator&lt;customer*&gt; &gt; &gt;, long, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (120,570,191 samples, 0.25%)</title><rect x="950.4" y="181" width="3.0" height="15.0" fill="rgb(239,156,37)" rx="2" ry="2" />
+<text  x="953.43" y="191.5" ></text>
+</g>
+<g >
+<title>_int_free (147,668,429 samples, 0.31%)</title><rect x="1084.3" y="229" width="3.6" height="15.0" fill="rgb(247,196,46)" rx="2" ry="2" />
+<text  x="1087.26" y="239.5" ></text>
+</g>
+<g >
+<title>std::istream&amp; std::istream::_M_extract&lt;double&gt; (8,555,936 samples, 0.02%)</title><rect x="1171.2" y="293" width="0.2" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="1174.20" y="303.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (72,628,788 samples, 0.15%)</title><rect x="1095.3" y="261" width="1.8" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1098.32" y="271.5" ></text>
+</g>
+<g >
+<title>route_init_penalty (1,637,692,066 samples, 3.46%)</title><rect x="705.5" y="261" width="40.8" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="708.50" y="271.5" >rou..</text>
+</g>
+<g >
+<title>__unguarded_partition_pivot&lt;__gnu_cxx::__normal_iterator&lt;customer**, std::vector&lt;customer*&gt; &gt;, __gnu_cxx::__ops::_Iter_comp_iter&lt;init_neighbours_sorted (16,673,469 samples, 0.04%)</title><rect x="953.0" y="101" width="0.4" height="15.0" fill="rgb(252,220,52)" rx="2" ry="2" />
+<text  x="956.02" y="111.5" ></text>
+</g>
+<g >
+<title>sched_tick (34,187,951 samples, 0.07%)</title><rect x="361.9" y="149" width="0.8" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="364.88" y="159.5" ></text>
+</g>
+<g >
+<title>asdouble (35,298,643 samples, 0.07%)</title><rect x="361.0" y="261" width="0.9" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="364.00" y="271.5" ></text>
+</g>
+<g >
+<title>slab_list_create (37,889,584 samples, 0.08%)</title><rect x="502.7" y="309" width="0.9" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="505.65" y="319.5" ></text>
+</g>
+<g >
+<title>modification_applicable (107,747,449 samples, 0.23%)</title><rect x="655.2" y="373" width="2.7" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="658.23" y="383.5" ></text>
+</g>
+<g >
+<title>solution_find_feasible_insertion (287,375,575 samples, 0.61%)</title><rect x="946.3" y="245" width="7.1" height="15.0" fill="rgb(241,169,40)" rx="2" ry="2" />
+<text  x="949.27" y="255.5" ></text>
+</g>
+<g >
+<title>dist (267,312,634 samples, 0.56%)</title><rect x="1139.0" y="213" width="6.6" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1141.97" y="223.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_eject_delta (109,449,486 samples, 0.23%)</title><rect x="968.8" y="229" width="2.7" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="971.81" y="239.5" ></text>
+</g>
+<g >
+<title>c_penalty_get_penalty (144,090,966 samples, 0.30%)</title><rect x="1014.4" y="245" width="3.6" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="1017.37" y="255.5" ></text>
+</g>
+<g >
+<title>dist (1,613,163,999 samples, 3.41%)</title><rect x="825.2" y="245" width="40.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="828.23" y="255.5" >dist</text>
+</g>
+<g >
+<title>unlink_chunk (72,389,398 samples, 0.15%)</title><rect x="1166.7" y="181" width="1.8" height="15.0" fill="rgb(236,146,34)" rx="2" ry="2" />
+<text  x="1169.68" y="191.5" ></text>
+</g>
+<g >
+<title>problem_decode (8,555,936 samples, 0.02%)</title><rect x="1171.2" y="325" width="0.2" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="1174.20" y="335.5" ></text>
+</g>
+<g >
+<title>_int_free_maybe_consolidate (48,913,255 samples, 0.10%)</title><rect x="985.2" y="245" width="1.2" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="988.18" y="255.5" ></text>
+</g>
+<g >
+<title>fiber_start (68,210,401 samples, 0.14%)</title><rect x="698.3" y="277" width="1.7" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="701.29" y="287.5" ></text>
+</g>
+<g >
+<title>__GI___libc_malloc (34,740,312 samples, 0.07%)</title><rect x="989.8" y="261" width="0.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="992.79" y="271.5" ></text>
+</g>
+<g >
+<title>tw_penalty_get_insert_delta (726,751,226 samples, 1.53%)</title><rect x="1058.0" y="229" width="18.1" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="1061.02" y="239.5" ></text>
+</g>
+<g >
+<title>modification_apply (6,784,389,331 samples, 14.32%)</title><rect x="702.7" y="277" width="169.1" height="15.0" fill="rgb(242,174,41)" rx="2" ry="2" />
+<text  x="705.73" y="287.5" >modification_apply</text>
+</g>
+</g>
+</svg>
