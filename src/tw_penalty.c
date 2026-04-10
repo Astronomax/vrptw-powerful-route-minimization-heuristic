@@ -9,6 +9,7 @@
 #include "problem.h"
 #include "route.h"
 #include "utils.h"
+#include "penalty_inline.h"
 
 void
 tw_penalty_init(struct route *r)
@@ -107,73 +108,43 @@ tw_penalty_update_backward(struct customer *start)
 double
 tw_penalty_get_penalty(struct route *r)
 {
-	return depot_tail(r)->tw_pf;
+	return tw_penalty_get_penalty_inline(r);
 }
 
 double
 tw_penalty_get_insert_penalty(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	double p_tw = v_minus->tw_pf + v->tw_sf;
-	double a_quote_w = v_minus->a + v_minus->s + dist(v_minus, w);
-	double z_quote_w = v->z - w->s - dist(w, v);
-	p_tw += MAX(0., a_quote_w - w->l);
-	p_tw += MAX(0., w->e - z_quote_w);
-	double a_w = MIN(MAX(a_quote_w, w->e), w->l);
-	double z_w = MIN(MAX(z_quote_w, w->e), w->l);
-	p_tw += MAX(0., a_w - z_w);
-	return p_tw;
+	return tw_penalty_get_insert_penalty_inline(v, w);
 }
 
 double
 tw_penalty_get_insert_delta(struct customer *v, struct customer *w)
 {
-	return tw_penalty_get_insert_penalty(v, w)
-		- tw_penalty_get_penalty(v->route);
+	return tw_penalty_get_insert_delta_inline(v, w);
 }
 
 double
 tw_penalty_get_replace_penalty(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
-	double p_tw = v_minus->tw_pf + v_plus->tw_sf;
-	double a_quote_v = v_minus->a + v_minus->s + dist(v_minus, w);
-	double z_quote_v = v_plus->z - w->s - dist(w, v_plus);
-	p_tw += MAX(0., a_quote_v - w->l);
-	p_tw += MAX(0., w->e - z_quote_v);
-	double a_v = MIN(MAX(a_quote_v, w->e), w->l);
-	double z_v = MIN(MAX(z_quote_v, w->e), w->l);
-	p_tw += MAX(0., a_v - z_v);
-	return p_tw;
+	return tw_penalty_get_replace_penalty_inline(v, w);
 }
 
 double
 tw_penalty_get_replace_delta(struct customer *v, struct customer *w)
 {
-	return tw_penalty_get_replace_penalty(v, w)
-	       - tw_penalty_get_penalty(v->route);
+	return tw_penalty_get_replace_delta_inline(v, w);
 }
 
 double
 tw_penalty_get_eject_penalty(struct customer *v)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
-	double p_tw = v_minus->tw_pf + v_plus->tw_sf;
-	double a_quote_v_plus = v_minus->a + v_minus->s
-		+ dist(v_minus, v_plus);
-	double a_v_plus = MIN(MAX(a_quote_v_plus, v_plus->e), v_plus->l);
-	p_tw += MAX(0., a_quote_v_plus - v_plus->l);
-	p_tw += MAX(0., a_v_plus - v_plus->z);
-	return p_tw;
+	return tw_penalty_get_eject_penalty_inline(v);
 }
 
 double
 tw_penalty_get_eject_delta(struct customer *v)
 {
-	return tw_penalty_get_eject_penalty(v)
-		- tw_penalty_get_penalty(v->route);
+	return tw_penalty_get_eject_delta_inline(v);
 }
 
 penalty_common_modification_apply_straight_delta(tw)
@@ -181,23 +152,15 @@ penalty_common_modification_apply_straight_delta(tw)
 double
 tw_penalty_one_opt_penalty(struct customer *v, struct customer *w)
 {
-
 	assert(v->route != w->route);
-	struct customer *w_plus = rlist_next_entry(w, in_route);
-	double p_tw = v->tw_pf + w_plus->tw_sf;
-	double a_quote_w_plus = v->a + v->s + dist(v, w_plus);
-	p_tw += MAX(0., a_quote_w_plus - w_plus->z);
-	return p_tw;
+	return tw_penalty_one_opt_penalty_inline(v, w);
 }
 
 double
 tw_penalty_two_opt_penalty_delta(struct customer *v, struct customer *w)
 {
 	assert(v->route != w->route);
-	return (tw_penalty_one_opt_penalty(v, w)
-		- tw_penalty_get_penalty(v->route))
-		+ (tw_penalty_one_opt_penalty(w, v)
-		- tw_penalty_get_penalty(w->route));
+	return tw_penalty_two_opt_penalty_delta_inline(v, w);
 }
 
 /** This will probably never be called */
@@ -215,8 +178,7 @@ tw_penalty_out_relocate_penalty_delta_fast
 	(struct customer *v, struct customer *w)
 {
 	assert(v->route != w->route);
-	return tw_penalty_get_eject_delta(w)
-		+ tw_penalty_get_insert_delta(v, w);
+	return tw_penalty_out_relocate_penalty_delta_fast_inline(v, w);
 }
 
 double
@@ -241,8 +203,7 @@ double
 tw_penalty_exchange_penalty_delta_fast(struct customer *v, struct customer *w)
 {
 	assert(v->route != w->route);
-	return tw_penalty_get_replace_delta(v, w)
-		+ tw_penalty_get_replace_delta(w, v);
+	return tw_penalty_exchange_penalty_delta_fast_inline(v, w);
 }
 
 double
