@@ -120,14 +120,38 @@ inter_route_modifications(
 {
 	assert(v->route != w->route);
 	modification_neighbourhood_args *a = &data->args;
-	for (int t = 0; t <= EXCHANGE; t++) {
-		*a->m = modification_new((modification_type) t, v, w);
-		if (modification_applicable(*a->m)) {
-			fiber_yield();
-			if (fiber_is_cancelled())
-				break;
-		}
+
+#define yield_modification(_type) do {					\
+	*a->m = modification_new((_type), v, w);			\
+	assert(modification_applicable(*a->m));			\
+	fiber_yield();							\
+	if (fiber_is_cancelled())					\
+		return;							\
+} while (0)
+
+	/*
+	 * Most inter-route candidates are generated with depot sentinels.
+	 * Avoid constructing modifications that modification_applicable()
+	 * would reject immediately.
+	 */
+	if (w->id == 0) {
+		if (w == depot_tail(w->route))
+			return;
+		if (v->id != 0)
+			yield_modification(TWO_OPT);
+		return;
 	}
+
+	if (v->id == 0) {
+		yield_modification(OUT_RELOCATE);
+		return;
+	}
+
+	yield_modification(TWO_OPT);
+	yield_modification(OUT_RELOCATE);
+	yield_modification(EXCHANGE);
+
+#undef yield_modification
 }
 
 void
