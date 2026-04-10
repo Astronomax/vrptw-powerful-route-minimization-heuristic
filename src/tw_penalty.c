@@ -48,6 +48,62 @@ tw_penalty_init(struct route *r)
 	}
 }
 
+void
+tw_penalty_update_forward(struct customer *start)
+{
+	if (start == NULL)
+		return;
+	struct route *r = start->route;
+	assert(r != NULL);
+
+	if (start == depot_head(r)) {
+		start->a = start->e;
+		start->tw_pf = 0.;
+		start->idx = 0;
+		start = route_next(start);
+		if (rlist_entry_is_head(start, &r->list, in_route))
+			return;
+	}
+
+	struct customer *prev = route_prev(start);
+	for (struct customer *cur = start;
+	     !rlist_entry_is_head(cur, &r->list, in_route);
+	     cur = route_next(cur)) {
+		double a_quote = prev->a + prev->s + dist(prev, cur);
+		cur->a = MIN(MAX(a_quote, cur->e), cur->l);
+		cur->tw_pf = prev->tw_pf + MAX(0., a_quote - cur->l);
+		cur->idx = prev->idx + 1;
+		prev = cur;
+	}
+}
+
+void
+tw_penalty_update_backward(struct customer *start)
+{
+	if (start == NULL)
+		return;
+	struct route *r = start->route;
+	assert(r != NULL);
+
+	if (start == depot_tail(r)) {
+		start->z = p.depot->l;
+		start->tw_sf = 0.;
+		start = route_prev(start);
+		if (rlist_entry_is_head(start, &r->list, in_route))
+			return;
+	}
+
+	struct customer *next = route_next(start);
+	for (struct customer *cur = start;
+	     !rlist_entry_is_head(cur, &r->list, in_route);
+	     cur = route_prev(cur)) {
+		double z_quote = next->z - cur->s - dist(cur, next);
+		cur->z = MIN(MAX(z_quote, cur->e), cur->l);
+		cur->tw_sf = next->tw_sf + MAX(0., cur->e - z_quote);
+		next = cur;
+	}
+}
+
 double
 tw_penalty_get_penalty(struct route *r)
 {

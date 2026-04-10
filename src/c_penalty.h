@@ -17,6 +17,12 @@ extern "C" {
 void
 c_penalty_init(struct route *r);
 
+void
+c_penalty_update_forward(struct customer *start);
+
+void
+c_penalty_update_backward(struct customer *start);
+
 double
 c_penalty_get_penalty(struct route *r);
 

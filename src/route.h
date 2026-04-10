@@ -55,6 +55,10 @@ route_init(struct route *r, struct customer **arr, int n);
 void
 route_init_penalty(struct route *r);
 
+void
+route_update_penalty(struct route *r, struct customer *forward_start,
+		     struct customer *backward_start);
+
 struct route *
 route_dup(struct route *r);
 

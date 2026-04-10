@@ -41,6 +41,22 @@ route_init_penalty(struct route *r)
 	//distance_init(r);
 }
 
+void
+route_update_penalty(struct route *r, struct customer *forward_start,
+		     struct customer *backward_start)
+{
+	assert(r != NULL);
+	if (forward_start == NULL || backward_start == NULL) {
+		route_init_penalty(r);
+		return;
+	}
+
+	c_penalty_update_forward(forward_start);
+	c_penalty_update_backward(backward_start);
+	tw_penalty_update_forward(forward_start);
+	tw_penalty_update_backward(backward_start);
+}
+
 /* TODO: deprecate */
 struct route *
 route_dup(struct route *r)

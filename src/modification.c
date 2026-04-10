@@ -91,6 +91,8 @@ modification_apply(struct modification m)
 		break;
 	}
 	case OUT_RELOCATE: {
+		struct customer *source_forward = route_next(m.w);
+		struct customer *source_backward = route_prev(m.w);
 		if (m.v == m.w)
 			return;
 
@@ -100,20 +102,38 @@ modification_apply(struct modification m)
 
 		rlist_move_entry(&prev->in_route, m.w, in_route);
 		m.w->route = v_route;
-		break;
+		if (v_route == w_route) {
+			route_init_penalty(v_route);
+			route_check(v_route);
+			return;
+		}
+		route_update_penalty(v_route, m.w, m.w);
+		route_update_penalty(w_route, source_forward, source_backward);
+		route_check(v_route);
+		route_check(w_route);
+		return;
 	}
 	case EXCHANGE: {
 		if (m.v == m.w)
 			return;
 		rlist_swap_items(&m.v->in_route, &m.w->in_route);
 		SWAP(m.v->route, m.w->route);
-		break;
+		if (v_route == w_route) {
+			route_init_penalty(v_route);
+			route_check(v_route);
+			return;
+		}
+		route_update_penalty(v_route, m.w, m.w);
+		route_update_penalty(w_route, m.v, m.v);
+		route_check(v_route);
+		route_check(w_route);
+		return;
 	}
 	case INSERT: {
 		rlist_move_entry(
 			rlist_prev(&m.v->in_route), m.w, in_route);
 		m.w->route = v_route;
-		route_init_penalty(v_route);
+		route_update_penalty(v_route, m.w, m.w);
 		route_check(v_route);
 		/**
 		 * This will probably never be true.
@@ -128,9 +148,11 @@ modification_apply(struct modification m)
 		return;
 	}
 	case EJECT: {
+		struct customer *forward_start = route_next(m.v);
+		struct customer *backward_start = route_prev(m.v);
 		rlist_del_entry(m.v, in_route);
 		m.v->route = NULL;
-		route_init_penalty(v_route);
+		route_update_penalty(v_route, forward_start, backward_start);
 		route_check(v_route);
 		rlist_create(&m.v->in_route);
 		return;
