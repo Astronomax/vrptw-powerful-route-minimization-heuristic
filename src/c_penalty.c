@@ -8,6 +8,7 @@
 #include "problem.h"
 #include "route.h"
 #include "utils.h"
+#include "penalty_inline.h"
 
 void
 c_penalty_init(struct route *r)
@@ -84,53 +85,46 @@ c_penalty_update_backward(struct customer *start)
 double
 c_penalty_get_penalty(struct route *r)
 {
-	return MAX(0., depot_tail(r)->demand_pf - p.vc);
+	return c_penalty_get_penalty_inline(r);
 }
 
 double
 c_penalty_get_insert_penalty(struct customer *v, struct customer *w)
 {
-	struct route *r = v->route;
-	assert(r != NULL);
-	return MAX(0., depot_tail(r)->demand_pf + w->demand - p.vc);
+	assert(v->route != NULL);
+	return c_penalty_get_insert_penalty_inline(v, w);
 }
 
 double
 c_penalty_get_insert_delta(struct customer *v, struct customer *w)
 {
-	return c_penalty_get_insert_penalty(v, w)
-	       - c_penalty_get_penalty(v->route);
+	return c_penalty_get_insert_delta_inline(v, w);
 }
 
 double
 c_penalty_get_replace_penalty(struct customer *v, struct customer *w)
 {
-	struct route *r = v->route;
-	assert(r != NULL);
-	return MAX(0., depot_tail(r)->demand_pf - v->demand + w->demand
-		- p.vc);
+	assert(v->route != NULL);
+	return c_penalty_get_replace_penalty_inline(v, w);
 }
 
 double
 c_penalty_get_replace_delta(struct customer *v, struct customer *w)
 {
-	return c_penalty_get_replace_penalty(v, w)
-	       - c_penalty_get_penalty(v->route);
+	return c_penalty_get_replace_delta_inline(v, w);
 }
 
 double
 c_penalty_get_eject_penalty(struct customer *v)
 {
-	struct route *r = v->route;
-	assert(r != NULL);
-	return MAX(0., depot_tail(r)->demand_pf - v->demand - p.vc);
+	assert(v->route != NULL);
+	return c_penalty_get_eject_penalty_inline(v);
 }
 
 double
 c_penalty_get_eject_delta(struct customer *v)
 {
-	return c_penalty_get_eject_penalty(v)
-	       - c_penalty_get_penalty(v->route);
+	return c_penalty_get_eject_delta_inline(v);
 }
 
 /** This probably doesn't make sense for c_penalty and will never be used */
@@ -140,18 +134,14 @@ double
 c_penalty_one_opt_penalty(struct customer *v, struct customer *w)
 {
 	assert(v->route != w->route);
-	struct customer *w_plus = rlist_next_entry(w, in_route);
-	return MAX(0., v->demand_pf + w_plus->demand_sf - p.vc);
+	return c_penalty_one_opt_penalty_inline(v, w);
 }
 
 double
 c_penalty_two_opt_penalty_delta(struct customer *v, struct customer *w)
 {
 	assert(v->route != w->route);
-	return (c_penalty_one_opt_penalty(v, w)
-		- c_penalty_get_penalty(v->route))
-		+ (c_penalty_one_opt_penalty(w, v)
-		- c_penalty_get_penalty(w->route));
+	return c_penalty_two_opt_penalty_delta_inline(v, w);
 }
 
 double
@@ -160,10 +150,8 @@ c_penalty_out_relocate_penalty_delta(struct customer *v, struct customer *w)
 	/** This branch will probably never be executed */
 	if (unlikely(v->route == w->route))
 		return 0.f;
-	else {
-		return c_penalty_get_eject_delta(w)
-		       + c_penalty_get_insert_delta(v, w);
-	}
+	else
+		return c_penalty_out_relocate_penalty_delta_inline(v, w);
 }
 
 double
@@ -172,8 +160,6 @@ c_penalty_exchange_penalty_delta(struct customer *v, struct customer *w)
 	/** This branch will probably never be executed */
 	if (unlikely(v->route == w->route))
 		return 0.f;
-	else {
-		return c_penalty_get_replace_delta(v, w)
-		       + c_penalty_get_replace_delta(w, v);
-	}
+	else
+		return c_penalty_exchange_penalty_delta_inline(v, w);
 }

@@ -1,5 +1,6 @@
 #include "modification.h"
 
+#include "penalty_inline.h"
 #include "route.h"
 
 #include "small_extra/rlist_extra.h"
@@ -179,24 +180,34 @@ modification_delta(struct modification m, double alpha, double beta)
 	if (!m.delta_initialized) {
 		switch (m.type) {
 			case TWO_OPT:
-				m.tw_penalty_delta = tw_penalty_two_opt_penalty_delta(m.v, m.w);
-				m.c_penalty_delta = c_penalty_two_opt_penalty_delta(m.v, m.w);
+				m.tw_penalty_delta = tw_penalty_two_opt_penalty_delta_inline(m.v, m.w);
+				m.c_penalty_delta = c_penalty_two_opt_penalty_delta_inline(m.v, m.w);
 				break;
 			case OUT_RELOCATE:
-				m.tw_penalty_delta = tw_penalty_out_relocate_penalty_delta(m.v, m.w);
-				m.c_penalty_delta = c_penalty_out_relocate_penalty_delta(m.v, m.w);
+				if (unlikely(m.v->route == m.w->route)) {
+					m.tw_penalty_delta = tw_penalty_out_relocate_penalty_delta(m.v, m.w);
+					m.c_penalty_delta = c_penalty_out_relocate_penalty_delta(m.v, m.w);
+				} else {
+					m.tw_penalty_delta = tw_penalty_out_relocate_penalty_delta_fast_inline(m.v, m.w);
+					m.c_penalty_delta = c_penalty_out_relocate_penalty_delta_inline(m.v, m.w);
+				}
 				break;
 			case EXCHANGE:
-				m.tw_penalty_delta = tw_penalty_exchange_penalty_delta(m.v, m.w);
-				m.c_penalty_delta = c_penalty_exchange_penalty_delta(m.v, m.w);
+				if (unlikely(m.v->route == m.w->route)) {
+					m.tw_penalty_delta = tw_penalty_exchange_penalty_delta(m.v, m.w);
+					m.c_penalty_delta = c_penalty_exchange_penalty_delta(m.v, m.w);
+				} else {
+					m.tw_penalty_delta = tw_penalty_exchange_penalty_delta_fast_inline(m.v, m.w);
+					m.c_penalty_delta = c_penalty_exchange_penalty_delta_inline(m.v, m.w);
+				}
 				break;
 			case INSERT:
-				m.tw_penalty_delta = tw_penalty_get_insert_delta(m.v, m.w);
-				m.c_penalty_delta = c_penalty_get_insert_delta(m.v, m.w);
+				m.tw_penalty_delta = tw_penalty_get_insert_delta_inline(m.v, m.w);
+				m.c_penalty_delta = c_penalty_get_insert_delta_inline(m.v, m.w);
 				break;
 			case EJECT:
-				m.tw_penalty_delta = tw_penalty_get_eject_delta(m.v);
-				m.c_penalty_delta = c_penalty_get_eject_delta(m.v);
+				m.tw_penalty_delta = tw_penalty_get_eject_delta_inline(m.v);
+				m.c_penalty_delta = c_penalty_get_eject_delta_inline(m.v);
 				break;
 			default:
 				unreachable();
