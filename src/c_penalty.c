@@ -1,6 +1,7 @@
 #include "c_penalty.h"
 
 #include "assert.h"
+#include "math.h"
 
 #include "modification.h"
 #include "penalty_common.h"
@@ -29,6 +30,54 @@ c_penalty_init(struct route *r)
 		prev->demand_sf =
 			next->demand_sf + prev->demand;
 		next = prev;
+	}
+}
+
+void
+c_penalty_update_forward(struct customer *start)
+{
+	if (start == NULL)
+		return;
+	struct route *r = start->route;
+	assert(r != NULL);
+
+	if (start == depot_head(r)) {
+		start->demand_pf = start->demand;
+		start = route_next(start);
+		if (rlist_entry_is_head(start, &r->list, in_route))
+			return;
+	}
+
+	struct customer *prev = route_prev(start);
+	for (struct customer *cur = start;
+	     !rlist_entry_is_head(cur, &r->list, in_route);
+	     cur = route_next(cur)) {
+		cur->demand_pf = prev->demand_pf + cur->demand;
+		prev = cur;
+	}
+}
+
+void
+c_penalty_update_backward(struct customer *start)
+{
+	if (start == NULL)
+		return;
+	struct route *r = start->route;
+	assert(r != NULL);
+
+	if (start == depot_tail(r)) {
+		start->demand_sf = start->demand;
+		start = route_prev(start);
+		if (rlist_entry_is_head(start, &r->list, in_route))
+			return;
+	}
+
+	struct customer *next = route_next(start);
+	for (struct customer *cur = start;
+	     !rlist_entry_is_head(cur, &r->list, in_route);
+	     cur = route_prev(cur)) {
+		cur->demand_sf = next->demand_sf + cur->demand;
+		next = cur;
 	}
 }
 
