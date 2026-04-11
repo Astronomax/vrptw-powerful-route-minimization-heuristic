@@ -114,14 +114,16 @@ ejections_random_route(int n_tests)
 
 		int64_t p_best_act = INT64_MAX,
 			p_best_exp = INT64_MAX;
-		RLIST_HEAD(ejection_act);
+		struct customer *ejection_act[MAX_N_CUSTOMERS_TEST];
+		int ejection_act_size = 0;
 		RLIST_HEAD(ejection_idx_exp);
 
 		struct fiber *f1 = fiber_new(iterate_over_subsets_f),
 			*f2 = fiber_new(feasible_ejections_f);
 
 		fiber_start(f1, p.n_customers, 5, &ejection_idx_exp);
-		fiber_start(f2, route, 5, &ps[0], &ejection_act, &p_best_act);
+		fiber_start(f2, route, 5, &ps[0], ejection_act, &ejection_act_size,
+			    &p_best_act);
 
 		rlist_persistent_history history;
 		rlist_create(&history);
@@ -148,7 +150,7 @@ ejections_random_route(int n_tests)
 		}
 		while (!fiber_is_dead(f2))
 			fiber_call(f2);
-		fprintf(stderr, "%d %d\n", p_best_act, p_best_exp);
+		fprintf(stderr, "%d %d %d\n", p_best_act, p_best_exp, ejection_act_size);
 		fflush(stderr);
 		assert(p_best_act == p_best_exp);
 	}

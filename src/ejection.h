@@ -28,7 +28,8 @@
  *
  * @param r 		route
  * @param k_max		maximum subset size
- * @param e		ejection (must be initially passed empty)
+ * @param e		output array for current ejection
+ * @param e_size	output size of current ejection
  * @param p_best	current minimum sum of p
  */
 int

@@ -36,15 +36,21 @@ Results on Gehring & Homberger 1000-customer instances (60 test cases):
 
 | Time Limit | This Implementation | Paper Results |
 |------------|---------------------|---------------|
-| 10 minutes | 3426                | 3420          |
-| 60 minutes | 3423                | 3419          |
+| 10 minutes | 3423                | 3420          |
+| 60 minutes | 3420                | 3419          |
 | 5 hours    | 3418                | 3417          |
 
 The table shows the total number of routes across all 60 test instances. The optimal sum (if all instances reached their current best-known solution) is 3416 (see this commit date).
 
 **Instances that did not reach the best-known solution within 5 hours:**
-* `c2_10_8`: best_known=28, achieved=29
-* `c2_10_9`: best_known=28, achieved=29
+- commit "ejection: replace temporary lists with arrays":
+    * `c1_10_8`: best_known=92, achieved=93
+    * `c2_10_9`: best_known=28, achieved=29
+- commit: "optimize (precalc dist), fix beta-correction":
+    * `c2_10_8`: best_known=28, achieved=29
+    * `c2_10_9`: best_known=28, achieved=29
+
+See commit messages. It takes time to carefully figure out which optimizations help and which ones hurt.
 
 ## Usage
 

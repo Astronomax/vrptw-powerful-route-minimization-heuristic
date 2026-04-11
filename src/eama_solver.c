@@ -225,8 +225,10 @@ insert_eject(struct solution *s)
 
 	int64_t p_best = INT64_MAX;
 	struct modification opt_insertion = modification_new(INSERT, NULL, s->w);
-	RLIST_HEAD(ejection);
-	RLIST_HEAD(opt_ejection);
+	struct customer *ejection[MAX_N_CUSTOMERS];
+	int ejection_size = 0;
+	struct customer *opt_ejection[MAX_N_CUSTOMERS];
+	int opt_ejection_size = 0;
 
 	for (int i = 0; i < s->n_routes; i++) {
 		struct route *v_route = s->routes[i];
@@ -247,16 +249,15 @@ insert_eject(struct solution *s)
 			 * that minimizes the sum p of the ejected customers
 			 */
 			struct fiber *f = fiber_new(feasible_ejections_f);
-			fiber_start(f, v_route, options.k_max, eama_solver.p, &ejection, &p_best);
+			fiber_start(f, v_route, options.k_max, eama_solver.p,
+				    ejection, &ejection_size, &p_best);
 			while(!fiber_is_dead(f)) {
 				opt_insertion = m;
-				rlist_create(&opt_ejection);
-				struct customer *c;
-				rlist_foreach_entry(c, &ejection, in_eject_temp)
-					rlist_add_tail_entry(&opt_ejection, c, in_opt_eject);
+				for (int j = 0; j < ejection_size; j++)
+					opt_ejection[j] = ejection[j];
+				opt_ejection_size = ejection_size;
 				fiber_call(f);
 			}
-			assert(rlist_empty(&ejection));
 			/* roll insertion back */
 			m = modification_new(EJECT, s->w, NULL);
 			assert(modification_applicable(m));
@@ -266,7 +267,7 @@ insert_eject(struct solution *s)
 	if (options.log_level == LOGLEVEL_VERBOSE)
 		debug_print(tt_sprintf("opt insertion-ejection p_sum: %ld", p_best), RESET);
 
-	if (opt_insertion.v == NULL && rlist_empty(&opt_ejection)) {
+	if (opt_insertion.v == NULL && opt_ejection_size == 0) {
 		solution_move(s, s_dup);
 		return -1;
 	}
@@ -274,9 +275,8 @@ insert_eject(struct solution *s)
 	//{
 	//	if (options.log_level == LOGLEVEL_VERBOSE) {
 	//		printf("opt insertion-ejection: ");
-	//		struct customer *c;
-	//		rlist_foreach_entry(c, &opt_ejection, in_opt_eject)
-	//			printf("%d ", c->id);
+	//		for (int i = 0; i < opt_ejection_size; i++)
+	//			printf("%d ", opt_ejection[i]->id);
 	//		printf("\n");
 	//		fflush(stdout);
 	//	}
@@ -290,8 +290,8 @@ insert_eject(struct solution *s)
 	 * TODO: do not update penalty after each ejection,
 	 * update it once at the end.
 	 */
-	struct customer *c;
-	rlist_foreach_entry(c, &opt_ejection, in_opt_eject) {
+	for (int i = 0; i < opt_ejection_size; i++) {
+		struct customer *c = opt_ejection[i];
 		struct modification m = modification_new(EJECT, c, NULL);
 		assert(modification_applicable(m));
 		modification_apply(m);
