@@ -95,6 +95,11 @@ struct modification
 solution_find_optimal_insertion(struct solution *s, struct customer *w,
 				double alpha, double beta);
 
+int
+solution_collect_near_insertions(struct solution *s, struct customer *w,
+				 int n_near, struct modification *mods,
+				 int max_mods);
+
 struct customer *
 solution_find_customer_by_id(struct solution *s, int id);
 

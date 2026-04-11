@@ -225,6 +225,9 @@ insert_eject(struct solution *s)
 
 	int64_t p_best = INT64_MAX;
 	struct modification opt_insertion = modification_new(INSERT, NULL, s->w);
+	struct modification insertions[MAX_N_CUSTOMERS * 2];
+	int n_insertions = solution_collect_near_insertions(
+		s, s->w, options.n_near, insertions, MAX_N_CUSTOMERS * 2);
 	struct customer *ejection[MAX_N_CUSTOMERS];
 	int ejection_size = 0;
 	struct customer *opt_ejection[MAX_N_CUSTOMERS];
@@ -232,13 +235,9 @@ insert_eject(struct solution *s)
 
 	for (int i = 0; i < s->n_routes; i++) {
 		struct route *v_route = s->routes[i];
-		struct customer *v;
-		/* iterate over all possible insert positions in v_route */
-		rlist_foreach_entry(v, &v_route->list, in_route) {
-			if (v == depot_head(v_route))
-				continue;
-			struct modification m = modification_new(INSERT, v, s->w);
-			if (!modification_applicable(m))
+		for (int j = 0; j < n_insertions; j++) {
+			struct modification m = insertions[j];
+			if (m.v->route != v_route)
 				continue;
 			modification_apply(m);
 
@@ -253,8 +252,8 @@ insert_eject(struct solution *s)
 				    ejection, &ejection_size, &p_best);
 			while(!fiber_is_dead(f)) {
 				opt_insertion = m;
-				for (int j = 0; j < ejection_size; j++)
-					opt_ejection[j] = ejection[j];
+				for (int k = 0; k < ejection_size; k++)
+					opt_ejection[k] = ejection[k];
 				opt_ejection_size = ejection_size;
 				fiber_call(f);
 			}

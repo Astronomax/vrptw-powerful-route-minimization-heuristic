@@ -552,6 +552,41 @@ solution_find_optimal_insertion(struct solution *s, struct customer *w,
 	return opt_modification;
 }
 
+int
+solution_collect_near_insertions(struct solution *s, struct customer *w,
+				 int n_near, struct modification *mods,
+				 int max_mods)
+{
+	assert(is_ejected(w));
+	if (!solution_global_initialized)
+		solution_global_init();
+
+	int count = 0;
+	customer *v;
+	int limit = MIN(n_near, p.n_customers);
+	for (int i = 0; i < limit; i++) {
+		int id = neighbours_sorted[w->id][i];
+		assert(id != 0);
+		v = s->meta->idx[id];
+		struct modification m = modification_new(INSERT, v, w);
+		if (!modification_applicable(m))
+			continue;
+		assert(count < max_mods);
+		mods[count++] = m;
+	}
+
+	for (int i = 0; i < s->n_routes; i++) {
+		v = depot_tail(s->routes[i]);
+		struct modification m = modification_new(INSERT, v, w);
+		if (!modification_applicable(m))
+			continue;
+		assert(count < max_mods);
+		mods[count++] = m;
+	}
+
+	return count;
+}
+
 struct customer *
 solution_find_customer_by_id(struct solution *s, int id)
 {
