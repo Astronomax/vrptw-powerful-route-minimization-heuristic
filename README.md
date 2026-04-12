@@ -69,6 +69,53 @@ After that, build in the standard way:
 $ mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j && cd ..
 ```
 
+`Release` builds now also enable `-march=native`, `-Ofast`, `-fno-plt`, and `-flto` by default for extra performance.
+
+If you want a more portable or more conservative binary, you can disable any of them individually:
+
+```console
+$ mkdir build && cd build
+$ cmake .. -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_MARCH_NATIVE=OFF \
+    -DENABLE_OFAST=OFF \
+    -DENABLE_FNO_PLT=OFF \
+    -DENABLE_LTO=OFF
+$ make -j
+```
+
+For profile-guided optimization, use `scripts/build_pgo.sh`. It creates a `PGO generate` build, runs one or more training solver runs to collect profile data, and then rebuilds the final `PGO use` binary. Example:
+
+```console
+$ ./scripts/build_pgo.sh --run C1_10_1:100:60 --run RC2_10_1:20:60
+```
+
+This means:
+1. configure and build an instrumented `Release` binary with `-fprofile-generate`;
+2. run the solver on the listed benchmark instances to collect execution profiles;
+3. configure and build the final `Release` binary with `-fprofile-use`.
+
+If you want to collect the profile manually instead of using the script:
+
+```console
+$ cmake -S . -B pgo-gen -DCMAKE_BUILD_TYPE=Release \
+    -DPGO_MODE=GENERATE \
+    -DPGO_PROFILE_DIR="$PWD/pgo-data"
+$ cmake --build pgo-gen --target routes -j
+
+$ ./pgo-gen/routes GehringHomberger1000/C1_10_1.TXT C1_10_1.sol \
+    --lower_bound 100 \
+    --t_max 60 \
+    --beta_correction \
+    --log_level normal
+
+$ cmake -S . -B pgo-use -DCMAKE_BUILD_TYPE=Release \
+    -DPGO_MODE=USE \
+    -DPGO_PROFILE_DIR="$PWD/pgo-data"
+$ cmake --build pgo-use --target routes -j
+```
+
+The training run should be representative of the instances you care about, because the final binary is optimized using the collected execution profile.
+
 Then you can run the utility:
 ```console
 $ ./build/routes --help
