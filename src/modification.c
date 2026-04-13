@@ -3,7 +3,7 @@
 #include "penalty_inline.h"
 #include "route.h"
 
-#include "small_extra/rlist_extra.h"
+#include <string.h>
 
 struct modification
 modification_new(enum modification_type type, struct customer *v, struct customer *w)
@@ -34,7 +34,7 @@ modification_applicable(struct modification m)
 	case OUT_RELOCATE:
 		if (w_route == NULL)
 			return false;
-		struct customer *prev = rlist_prev_entry(m.v, in_route);
+		struct customer *prev = route_prev(m.v);
 		if (prev == m.w)
 			return false;
 	case INSERT:
@@ -76,19 +76,24 @@ modification_apply(struct modification m)
 	w_route = (m.w == NULL) ? NULL : m.w->route;
 	switch (m.type) {
 	case TWO_OPT: {
-		rlist_swap_tails(&m.v->route->list,
-				 &m.w->route->list,
-				 &m.v->in_route,
-				 &m.w->in_route);
-		struct customer *c;
-		for (c = rlist_next_entry(m.w, in_route);
-		     !rlist_entry_is_head(c, &w_route->list, in_route);
-		     c = rlist_next_entry(c, in_route))
-			c->route = w_route;
-		for (c = rlist_next_entry(m.v, in_route);
-		     !rlist_entry_is_head(c, &v_route->list, in_route);
-		     c = rlist_next_entry(c, in_route))
-			c->route = v_route;
+		int v_cut = m.v->idx + 1;
+		int w_cut = m.w->idx + 1;
+		int v_tail_len = v_route->size - v_cut;
+		int w_tail_len = w_route->size - w_cut;
+		struct customer *v_tail[MAX_N_CUSTOMERS + 2];
+		struct customer *w_tail[MAX_N_CUSTOMERS + 2];
+		memcpy(v_tail, &v_route->customers[v_cut],
+		       sizeof(v_tail[0]) * v_tail_len);
+		memcpy(w_tail, &w_route->customers[w_cut],
+		       sizeof(w_tail[0]) * w_tail_len);
+		memcpy(&v_route->customers[v_cut], w_tail,
+		       sizeof(w_tail[0]) * w_tail_len);
+		memcpy(&w_route->customers[w_cut], v_tail,
+		       sizeof(v_tail[0]) * v_tail_len);
+		v_route->size = v_cut + w_tail_len;
+		w_route->size = w_cut + v_tail_len;
+		route_refresh_metadata_from(v_route, v_cut);
+		route_refresh_metadata_from(w_route, w_cut);
 		break;
 	}
 	case OUT_RELOCATE: {
@@ -97,12 +102,16 @@ modification_apply(struct modification m)
 		if (m.v == m.w)
 			return;
 
-		struct customer *prev = rlist_prev_entry(m.v, in_route);
+		struct customer *prev = route_prev(m.v);
 		if (prev == m.w)
 			return;
 
-		rlist_move_entry(&prev->in_route, m.w, in_route);
-		m.w->route = v_route;
+		int src_idx = m.w->idx;
+		int dst_idx = m.v->idx;
+		route_remove_customer(w_route, src_idx);
+		if (v_route == w_route && src_idx < dst_idx)
+			--dst_idx;
+		route_insert_customer(v_route, dst_idx, m.w);
 		if (v_route == w_route) {
 			route_init_penalty(v_route);
 			route_check(v_route);
@@ -117,8 +126,15 @@ modification_apply(struct modification m)
 	case EXCHANGE: {
 		if (m.v == m.w)
 			return;
-		rlist_swap_items(&m.v->in_route, &m.w->in_route);
-		SWAP(m.v->route, m.w->route);
+		int v_idx = m.v->idx;
+		int w_idx = m.w->idx;
+		v_route->customers[v_idx] = m.w;
+		w_route->customers[w_idx] = m.v;
+		route_refresh_metadata_from(v_route, v_idx);
+		if (v_route == w_route)
+			route_refresh_metadata_from(w_route, MIN(v_idx, w_idx));
+		else
+			route_refresh_metadata_from(w_route, w_idx);
 		if (v_route == w_route) {
 			route_init_penalty(v_route);
 			route_check(v_route);
@@ -131,9 +147,8 @@ modification_apply(struct modification m)
 		return;
 	}
 	case INSERT: {
-		rlist_move_entry(
-			rlist_prev(&m.v->in_route), m.w, in_route);
-		m.w->route = v_route;
+		int insert_idx = m.v->idx;
+		route_insert_customer(v_route, insert_idx, m.w);
 		route_update_penalty(v_route, m.w, m.w);
 		route_check(v_route);
 		/**
@@ -145,17 +160,14 @@ modification_apply(struct modification m)
 		//	route_init_penalty(w_route);
 		//	route_check(w_route);
 		//}
-		rlist_create(&m.w->in_eject);
 		return;
 	}
 	case EJECT: {
 		struct customer *forward_start = route_next(m.v);
 		struct customer *backward_start = route_prev(m.v);
-		rlist_del_entry(m.v, in_route);
-		m.v->route = NULL;
+		route_remove_customer(v_route, m.v->idx);
 		route_update_penalty(v_route, forward_start, backward_start);
 		route_check(v_route);
-		rlist_create(&m.v->in_route);
 		return;
 	}
 	default:

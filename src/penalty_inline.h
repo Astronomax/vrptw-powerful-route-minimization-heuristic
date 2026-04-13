@@ -15,7 +15,7 @@ tw_penalty_get_penalty_inline(struct route *r)
 static ALWAYS_INLINE double
 tw_penalty_get_insert_penalty_inline(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
 	double p_tw = v_minus->tw_pf + v->tw_sf;
 	double a_quote_w = v_minus->a + v_minus->s + dist(v_minus, w);
 	double z_quote_w = v->z - w->s - dist(w, v);
@@ -37,8 +37,8 @@ tw_penalty_get_insert_delta_inline(struct customer *v, struct customer *w)
 static ALWAYS_INLINE double
 tw_penalty_get_replace_penalty_inline(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
 	double p_tw = v_minus->tw_pf + v_plus->tw_sf;
 	double a_quote_v = v_minus->a + v_minus->s + dist(v_minus, w);
 	double z_quote_v = v_plus->z - w->s - dist(w, v_plus);
@@ -60,8 +60,8 @@ tw_penalty_get_replace_delta_inline(struct customer *v, struct customer *w)
 static ALWAYS_INLINE double
 tw_penalty_get_eject_penalty_inline(struct customer *v)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
 	double p_tw = v_minus->tw_pf + v_plus->tw_sf;
 	double a_quote_v_plus = v_minus->a + v_minus->s + dist(v_minus, v_plus);
 	double a_v_plus = MIN(MAX(a_quote_v_plus, v_plus->e), v_plus->l);
@@ -80,7 +80,7 @@ tw_penalty_get_eject_delta_inline(struct customer *v)
 static ALWAYS_INLINE double
 tw_penalty_one_opt_penalty_inline(struct customer *v, struct customer *w)
 {
-	struct customer *w_plus = rlist_next_entry(w, in_route);
+	struct customer *w_plus = route_next(w);
 	double p_tw = v->tw_pf + w_plus->tw_sf;
 	double a_quote_w_plus = v->a + v->s + dist(v, w_plus);
 	p_tw += MAX(0., a_quote_w_plus - w_plus->z);
@@ -161,7 +161,7 @@ c_penalty_get_eject_delta_inline(struct customer *v)
 static ALWAYS_INLINE double
 c_penalty_one_opt_penalty_inline(struct customer *v, struct customer *w)
 {
-	struct customer *w_plus = rlist_next_entry(w, in_route);
+	struct customer *w_plus = route_next(w);
 	return MAX(0., v->demand_pf + w_plus->demand_sf - p.vc);
 }
 

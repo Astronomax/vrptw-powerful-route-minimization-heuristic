@@ -8,12 +8,10 @@
 #define DEBUG_ASSERT_NEAR(lhs, rhs) assert(fabs((lhs)-(rhs)) < 1e-5)
 
 void init_a_earliest(struct route *r) {
-	struct customer *next;
 	struct customer *prev = depot_head(r);
 	prev->a_earliest = prev->e;
-	for (next = rlist_next_entry(prev, in_route);
-	     !rlist_entry_is_head(next, &r->list, in_route);
-	     next = rlist_next_entry(next, in_route)) {
+	for (int i = 1; i < r->size; i++) {
+		struct customer *next = r->customers[i];
 		next->a_earliest = MAX(next->e, prev->a + prev->s + dist(prev, next));
 		assert(next->a == MIN(next->a_earliest, next->l));
 		prev = next;
@@ -44,7 +42,7 @@ feasible_ejections_f(va_list ap)
 	init_a_earliest(r);
 
 	struct customer *tmp;
-	route_foreach_from(tmp, rlist_next_entry(ne_last, in_route))
+	route_foreach_from(tmp, route_next(ne_last))
 		s[s_size++] = tmp;
 	for (int i = 0; i < s_size / 2; i++)
 		SWAP(s[i], s[s_size - 1 - i]);

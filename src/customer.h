@@ -30,7 +30,7 @@ struct customer {
 	struct rlist in_opt_eject;
 };
 
-#define is_ejected(c) rlist_empty(&c->in_route)
+#define is_ejected(c) ((c)->route == NULL)
 
 #if defined(__cplusplus)
 extern "C" {

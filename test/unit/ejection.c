@@ -4,8 +4,6 @@
 #include "core/memory.h"
 #include "core/random.h"
 
-#include "small_extra/rlist_persistent.h"
-
 #define MAX_N_CUSTOMERS_TEST 10
 
 struct customer *cs[MAX_N_CUSTOMERS_TEST + 2];
@@ -125,19 +123,17 @@ ejections_random_route(int n_tests)
 		fiber_start(f2, route, 5, &ps[0], ejection_act, &ejection_act_size,
 			    &p_best_act);
 
-		rlist_persistent_history history;
-		rlist_create(&history);
-		rlist_persistent_svp svp = rlist_persistent_create_svp(&history);
-		
 		while(!fiber_is_dead(f1)) {
+			struct route *route_exp = route_dup(route);
 			struct subset_elem *idx;
-			rlist_foreach_entry(idx, &ejection_idx_exp, in_list)
-				rlist_persistent_del_entry(&history, cs[idx->idx], in_route);
-			route_init_penalty(route);
-			double p_c = c_penalty_get_penalty(route),
-				p_tw = tw_penalty_get_penalty(route);
-			rlist_persistent_rollback_to_svp(&history, svp);
-			route_init_penalty(route);
+			rlist_foreach_entry(idx, &ejection_idx_exp, in_list) {
+				struct customer *c = route_find_customer_by_id(
+					route_exp, cs[idx->idx]->id);
+				assert(c != NULL);
+				modification_apply(modification_new(EJECT, c, NULL));
+			}
+			double p_c = c_penalty_get_penalty(route_exp);
+			double p_tw = tw_penalty_get_penalty(route_exp);
 
 			if (p_c < EPS5 && p_tw < EPS5) {
 				int64_t p_sum = 0;
@@ -146,11 +142,13 @@ ejections_random_route(int n_tests)
 				if (p_sum < p_best_exp)
 					p_best_exp = p_sum;
 			}
+			route_delete(route_exp);
 			fiber_call(f1);
 		}
 		while (!fiber_is_dead(f2))
 			fiber_call(f2);
-		fprintf(stderr, "%d %d %d\n", p_best_act, p_best_exp, ejection_act_size);
+		fprintf(stderr, "%lld %lld %d\n",
+			(long long)p_best_act, (long long)p_best_exp, ejection_act_size);
 		fflush(stderr);
 		assert(p_best_act == p_best_exp);
 	}

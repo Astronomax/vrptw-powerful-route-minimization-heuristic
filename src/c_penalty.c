@@ -13,21 +13,18 @@
 void
 c_penalty_init(struct route *r)
 {
-	struct customer *next;
 	struct customer *prev = depot_head(r);
 	prev->demand_pf = prev->demand;
-	for (next = rlist_next_entry(prev, in_route);
-	     !rlist_entry_is_head(next, &r->list, in_route);
-	     next = rlist_next_entry(next, in_route)) {
+	for (int i = 1; i < r->size; i++) {
+		struct customer *next = r->customers[i];
 		next->demand_pf =
 			prev->demand_pf + next->demand;
 		prev = next;
 	}
-	next = depot_tail(r);
+	struct customer *next = depot_tail(r);
 	next->demand_sf = next->demand;
-	for (prev = rlist_prev_entry(next, in_route);
-	     !rlist_entry_is_head(prev, &r->list, in_route);
-	     prev = rlist_prev_entry(prev, in_route)) {
+	for (int i = r->size - 2; i >= 0; i--) {
+		prev = r->customers[i];
 		prev->demand_sf =
 			next->demand_sf + prev->demand;
 		next = prev;
@@ -45,14 +42,13 @@ c_penalty_update_forward(struct customer *start)
 	if (start == depot_head(r)) {
 		start->demand_pf = start->demand;
 		start = route_next(start);
-		if (rlist_entry_is_head(start, &r->list, in_route))
+		if (start->idx >= r->size)
 			return;
 	}
 
 	struct customer *prev = route_prev(start);
-	for (struct customer *cur = start;
-	     !rlist_entry_is_head(cur, &r->list, in_route);
-	     cur = route_next(cur)) {
+	for (int i = start->idx; i < r->size; i++) {
+		struct customer *cur = r->customers[i];
 		cur->demand_pf = prev->demand_pf + cur->demand;
 		prev = cur;
 	}
@@ -69,14 +65,13 @@ c_penalty_update_backward(struct customer *start)
 	if (start == depot_tail(r)) {
 		start->demand_sf = start->demand;
 		start = route_prev(start);
-		if (rlist_entry_is_head(start, &r->list, in_route))
+		if (start->idx < 0)
 			return;
 	}
 
 	struct customer *next = route_next(start);
-	for (struct customer *cur = start;
-	     !rlist_entry_is_head(cur, &r->list, in_route);
-	     cur = route_prev(cur)) {
+	for (int i = start->idx; i >= 0; i--) {
+		struct customer *cur = r->customers[i];
 		cur->demand_sf = next->demand_sf + cur->demand;
 		next = cur;
 	}

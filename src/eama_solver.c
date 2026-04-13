@@ -234,9 +234,8 @@ insert_eject(struct solution *s)
 		struct route *v_route = s->routes[i];
 		struct customer *v;
 		/* iterate over all possible insert positions in v_route */
-		rlist_foreach_entry(v, &v_route->list, in_route) {
-			if (v == depot_head(v_route))
-				continue;
+		for (int j = 1; j < v_route->size; j++) {
+			v = v_route->customers[j];
 			struct modification m = modification_new(INSERT, v, s->w);
 			if (!modification_applicable(m))
 				continue;

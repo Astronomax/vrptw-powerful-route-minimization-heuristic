@@ -12,12 +12,10 @@ solution_encode(solution *s, const char *file)
 	std::ofstream f(file_string);
 	for (int i = 0; i < s->n_routes; i++) {
 		route *r = s->routes[i];
-		customer *next;
-		customer *prev = depot_head(r);
 		double t = -(double)INFINITY;
-		for (next = rlist_next_entry(prev, in_route);
-		     !rlist_entry_is_head(prev, &r->list, in_route);
-		     next = rlist_next_entry(next, in_route)) {
+		for (int j = 0; j < r->size; j++) {
+			customer *prev = r->customers[j];
+			customer *next = (j + 1 < r->size) ? r->customers[j + 1] : prev;
 			t = MAX(prev->e, t);
 			f << prev->id << " " << t;
 			if (prev != depot_tail(s->routes[i])) {

@@ -8,20 +8,17 @@
 void
 distance_init(struct route *r)
 {
-	struct customer *next;
 	struct customer *prev = depot_head(r);
 	prev->dist_pf = 0.;
-	for (next = rlist_next_entry(prev, in_route);
-	     !rlist_entry_is_head(next, &r->list, in_route);
-	     next = rlist_next_entry(next, in_route)) {
+	for (int i = 1; i < r->size; i++) {
+		struct customer *next = r->customers[i];
 		next->dist_pf = prev->dist_pf + dist(prev, next);
 		prev = next;
 	}
-	next = depot_tail(r);
+	struct customer *next = depot_tail(r);
 	next->dist_sf = 0.;
-	for (prev = rlist_prev_entry(next, in_route);
-	     !rlist_entry_is_head(prev, &r->list, in_route);
-	     prev = rlist_prev_entry(prev, in_route)) {
+	for (int i = r->size - 2; i >= 0; i--) {
+		prev = r->customers[i];
 		prev->dist_sf = next->dist_sf + dist(prev, next);
 		next = prev;
 	}
@@ -36,46 +33,46 @@ distance_get_distance(struct route *r)
 double
 distance_get_insert_distance(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
 	return v_minus->dist_pf + dist(v_minus, w) + dist(w, v) + v->dist_sf;
 }
 
 double
 distance_get_insert_delta(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
 	return dist(w, v) + dist(v_minus, w)  - dist(v_minus, v);
 }
 
 double
 distance_get_eject_distance(struct customer *v)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
 	return v_minus->dist_pf + dist(v_minus, v_plus) + v_plus->dist_sf;
 }
 
 double
 distance_get_eject_delta(struct customer *v)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
 	return dist(v_minus, v_plus) - (dist(v_minus, v) + dist(v, v_plus));
 }
 
 double
 distance_get_replace_distance(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
 	return v_minus->dist_pf + dist(v_minus, w) + dist(w, v_plus) + v_plus->dist_sf;
 }
 
 double
 distance_get_replace_delta(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
 	return (dist(v_minus, w) + dist(w, v_plus))
 		- (dist(v_minus, v) + dist(v, v_plus));
 }
@@ -83,7 +80,7 @@ distance_get_replace_delta(struct customer *v, struct customer *w)
 double
 distance_one_opt_distance(struct customer *v, struct customer *w)
 {
-	struct customer *w_plus = rlist_next_entry(w, in_route);
+	struct customer *w_plus = route_next(w);
 	return v->dist_pf + dist(v, w_plus) + w_plus->dist_sf;
 }
 
@@ -100,7 +97,7 @@ distance_two_opt_distance_delta(struct customer *v, struct customer *w)
 double
 distance_out_relocate_distance_delta(struct customer *v, struct customer *w)
 {
-	struct customer *w_plus = rlist_next_entry(w, in_route);
+	struct customer *w_plus = route_next(w);
 	if (w_plus == v)
 		return 0.;
 	return distance_get_eject_delta(w) + distance_get_insert_delta(v, w);
@@ -109,10 +106,10 @@ distance_out_relocate_distance_delta(struct customer *v, struct customer *w)
 double
 distance_exchange_distance_delta(struct customer *v, struct customer *w)
 {
-	struct customer *v_minus = rlist_prev_entry(v, in_route);
-	struct customer *v_plus = rlist_next_entry(v, in_route);
-	struct customer *w_minus = rlist_prev_entry(w, in_route);
-	struct customer *w_plus = rlist_next_entry(w, in_route);
+	struct customer *v_minus = route_prev(v);
+	struct customer *v_plus = route_next(v);
+	struct customer *w_minus = route_prev(w);
+	struct customer *w_plus = route_next(w);
 	if (v_plus == w)
 		return dist(v_minus, w) + dist(v, w_plus)
 			- (dist(v_minus, v) + dist(w, w_plus));

@@ -1,11 +1,13 @@
 #include "route.h"
 
+#include <string.h>
+
 struct route *
 route_new(void)
 {
 	/* TODO: use mempool to allocate routes */
 	struct route *r = xmalloc(sizeof(struct route));
-	rlist_create(&r->list);
+	r->size = 0;
 	rlist_create(&r->in_routes);
 	return r;
 }
@@ -13,18 +15,12 @@ route_new(void)
 void
 route_init(struct route *r, struct customer **arr, int n)
 {
-	struct customer *c;
-	c = customer_dup(p.depot);
-	rlist_add_tail_entry(&r->list, c, in_route);
-	c->route = r;
-	for(int j = 0; j < n; j++) {
-		c = arr[j];
-		rlist_move_tail_entry(&r->list, c, in_route);
-		c->route = r;
-	}
-	c = customer_dup(p.depot);
-	rlist_add_tail_entry(&r->list, c, in_route);
-	c->route = r;
+	r->size = n + 2;
+	r->customers[0] = customer_dup(p.depot);
+	for (int j = 0; j < n; j++)
+		r->customers[j + 1] = arr[j];
+	r->customers[r->size - 1] = customer_dup(p.depot);
+	route_refresh_metadata_from(r, 0);
 	route_init_penalty(r);
 	route_check(r);
 }
@@ -46,6 +42,10 @@ route_update_penalty(struct route *r, struct customer *forward_start,
 		     struct customer *backward_start)
 {
 	assert(r != NULL);
+	if (forward_start != NULL)
+		assert(forward_start->route == r);
+	if (backward_start != NULL)
+		assert(backward_start->route == r);
 	if (forward_start == NULL || backward_start == NULL) {
 		route_init_penalty(r);
 		return;
@@ -57,22 +57,46 @@ route_update_penalty(struct route *r, struct customer *forward_start,
 	tw_penalty_update_backward(backward_start);
 }
 
+void
+route_insert_customer(struct route *r, int idx, struct customer *c)
+{
+	assert(idx >= 0 && idx <= r->size);
+	assert(r->size < MAX_N_CUSTOMERS + 2);
+	if (idx < r->size) {
+		memmove(&r->customers[idx + 1], &r->customers[idx],
+			sizeof(r->customers[0]) * (r->size - idx));
+	}
+	r->customers[idx] = c;
+	++r->size;
+	route_refresh_metadata_from(r, idx);
+}
+
+struct customer *
+route_remove_customer(struct route *r, int idx)
+{
+	assert(idx >= 0 && idx < r->size);
+	struct customer *removed = r->customers[idx];
+	if (idx + 1 < r->size) {
+		memmove(&r->customers[idx], &r->customers[idx + 1],
+			sizeof(r->customers[0]) * (r->size - idx - 1));
+	}
+	--r->size;
+	route_refresh_metadata_from(r, idx);
+	removed->route = NULL;
+	removed->idx = -1;
+	return removed;
+}
+
 /* TODO: deprecate */
 struct route *
 route_dup(struct route *r)
 {
 	struct route *dup = xmalloc(sizeof(*dup));
-	rlist_create(&dup->list);
+	dup->size = r->size;
 	rlist_create(&dup->in_routes);
-	struct customer *c;
-	/* One mempool allocation for each customer in list */
-	rlist_foreach_entry(c, &r->list, in_route) {
-		struct customer *c_dup = customer_dup(c);
-		rlist_add_tail_entry(&dup->list, c_dup, in_route);
-		c_dup->route = dup;
-	}
-	assert(rlist_first_entry(&dup->list, struct customer, in_route)->id == 0);
-	assert(rlist_last_entry(&dup->list, struct customer, in_route)->id == 0);
+	for (int i = 0; i < r->size; i++)
+		dup->customers[i] = customer_dup(r->customers[i]);
+	route_refresh_metadata_from(dup, 0);
 	route_check(r);
 	return dup;
 }
@@ -80,11 +104,8 @@ route_dup(struct route *r)
 void
 route_delete(struct route *r)
 {
-	struct customer *c, *tmp;
-	rlist_foreach_entry_safe(c, &r->list, in_route, tmp) {
-		rlist_del_entry(c, in_route);
-		customer_delete(c);
-	}
+	for (int i = 0; i < r->size; i++)
+		customer_delete(r->customers[i]);
 	free(r);
 }
 
@@ -94,10 +115,11 @@ route_find_customer_by_id(struct route *r, int id)
 	/** depot id */
 	if (id == 0)
 		return NULL;
-	struct customer *c;
-	rlist_foreach_entry(c, &r->list, in_route)
+	for (int i = 1; i + 1 < r->size; i++) {
+		struct customer *c = r->customers[i];
 		if (id == c->id)
 			return c;
+	}
 	return NULL;
 }
 
@@ -131,13 +153,11 @@ route_find_optimal_insertion(struct route *r, struct customer *w,
 				double alpha, double beta)
 {
 	assert(is_ejected(w));
-	struct customer *v;
 	struct modification opt_modification =
 		modification_new(INSERT, NULL, NULL);
 	double opt_penalty = INFINITY;
-	rlist_foreach_entry(v, &r->list, in_route) {
-		if (v == depot_head(r))
-			continue;
+	for (int i = 1; i < r->size; i++) {
+		struct customer *v = r->customers[i];
 		struct modification m = modification_new(INSERT, v, w);
 		double penalty = modification_delta(m, alpha, beta);
 		if (penalty < opt_penalty) {

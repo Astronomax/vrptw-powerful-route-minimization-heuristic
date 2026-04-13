@@ -348,7 +348,7 @@ solution_print_debug(solution *s)
 	printf("\n");
 	printf("s->n_routes: %d\n", s->n_routes);
 	for (int i = 0; i < s->n_routes; i++) {
-		rlist_foreach_entry(c, &s->routes[i]->list, in_route)
+		route_foreach(c, s->routes[i])
 			printf("%p, ", c);
 		printf("\n");
 	}
@@ -386,7 +386,6 @@ solution_default(void)
 	customer *c;
 	rlist_foreach_entry(c, &p.customers, in_route) {
 		route *r = route_new();
-		rlist_create(&r->list);
 		route_init(r, &s->meta->idx[c->id], 1);
 		s->routes[i] = r;
 		++i;
@@ -419,12 +418,13 @@ solution_dup(solution *s)
 	dup->n_routes = s->n_routes;
 	for (int i = 0; i < dup->n_routes; i++) {
 		route *r = route_new();
+		r->size = s->routes[i]->size;
 		route_foreach(c, s->routes[i]) {
 			auto c_dup = (c->id == 0) ? customer_dup(c) :
 				dup->meta->idx[c->id];
-			c_dup->route = r;
-			rlist_add_tail_entry(&r->list, c_dup, in_route);
+			r->customers[c->idx] = c_dup;
 		}
+		route_refresh_metadata_from(r, 0);
 		route_init_penalty(r);
 		route_check(r);
 		dup->routes[i] = r;
@@ -536,9 +536,8 @@ solution_find_optimal_insertion(struct solution *s, struct customer *w,
 		modification_new(INSERT, nullptr, nullptr);
 	double opt_penalty = INFINITY;
 	for(int i = 0; i < s->n_routes; i++) {
-		rlist_foreach_entry(v, &s->routes[i]->list, in_route) {
-			if (v == depot_head(s->routes[i]))
-				continue;
+		for (int j = 1; j < s->routes[i]->size; j++) {
+			v = s->routes[i]->customers[j];
 			struct modification m = modification_new(INSERT, v, w);
 			double penalty = modification_delta(m, alpha, beta);
 			if (penalty < opt_penalty) {
@@ -565,17 +564,14 @@ solution_eliminate_random_route(struct solution *s)
 	struct route *r = s->routes[route_idx];
 	SWAP(s->routes[route_idx], s->routes[s->n_routes - 1]);
 	--s->n_routes;
-
-	struct customer *c, *tmp;
-	rlist_foreach_entry_safe(c, &r->list, in_route, tmp) {
-		rlist_del_entry(c, in_route);
-		if (c->id == 0) {
-			customer_delete(c);
-		} else {
-			c->route = nullptr;
-			rlist_create(&c->in_route);
-			rlist_add_tail_entry(&s->ejection_pool, c, in_eject);
-		}
+	for (int i = 1; i + 1 < r->size; i++) {
+		struct customer *c = r->customers[i];
+		c->route = nullptr;
+		c->idx = -1;
+		rlist_add_tail_entry(&s->ejection_pool, c, in_eject);
 	}
+	customer_delete(depot_head(r));
+	customer_delete(depot_tail(r));
+	r->size = 0;
 	route_delete(r);
 }

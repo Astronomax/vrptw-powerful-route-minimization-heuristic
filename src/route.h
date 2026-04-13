@@ -1,10 +1,9 @@
 #ifndef EAMA_ROUTES_MINIMIZATION_HEURISTIC_ROUTE_H
 #define EAMA_ROUTES_MINIMIZATION_HEURISTIC_ROUTE_H
 
-#include "small/rlist.h"
-
 #include "customer.h"
 #include "modification.h"
+#include "small/rlist.h"
 #include "utils.h"
 
 #if defined(__cplusplus)
@@ -12,39 +11,62 @@ extern "C" {
 #endif /* defined(__cplusplus) */
 
 struct route {
-    /**
-     * List of customers. Contract:
-     * rlist_first_entry(&list, in_route) ==
-     * rlist_last_entry(&list, in_route) == p->depot
-     */
-    struct rlist list;
+    struct customer *customers[MAX_N_CUSTOMERS + 2];
+    int size;
     struct rlist in_routes;
     int in_infeasibles_idx;
 };
 
-#define route_foreach(c, r) rlist_foreach_entry(c, &r->list, in_route)
+#define route_foreach(c, r) \
+	for (int _route_i = 0; \
+	     _route_i < (r)->size && (((c) = (r)->customers[_route_i]) || 1); \
+	     ++_route_i)
+
+#define route_foreach_from(c, from) \
+	for (int _route_i = (from)->idx; \
+	     _route_i < (from)->route->size && \
+	     (((c) = (from)->route->customers[_route_i]) || 1); \
+	     ++_route_i)
+
+#define depot_head(r) ((r)->customers[0])
+#define depot_tail(r) ((r)->customers[(r)->size - 1])
+
+#define route_prev(c) ((c)->route->customers[(c)->idx - 1])
+#define route_next(c) ((c)->route->customers[(c)->idx + 1])
+
+static ALWAYS_INLINE int
+route_non_depot_size(struct route *r)
+{
+	return r->size - 2;
+}
+
+static ALWAYS_INLINE void
+route_refresh_metadata_from(struct route *r, int start_idx)
+{
+	if (start_idx < 0)
+		start_idx = 0;
+	for (int i = start_idx; i < r->size; i++) {
+		r->customers[i]->route = r;
+		r->customers[i]->idx = i;
+	}
+}
 
 static ALWAYS_INLINE void
 route_check(struct route *r)
 {
 	(void)r;
 #ifndef NDEBUG
-	assert(rlist_first_entry(&r->list, struct customer, in_route)->id == 0);
-	assert(rlist_last_entry(&r->list, struct customer, in_route)->id == 0);
+	assert(r->size >= 2);
+	assert(depot_head(r)->id == 0);
+	assert(depot_tail(r)->id == 0);
 	struct customer *c;
-	route_foreach(c, r) assert(c->route == r);
+	route_foreach(c, r) {
+		assert(c->route == r);
+		assert(c->idx >= 0 && c->idx < r->size);
+		assert(r->customers[c->idx] == c);
+	}
 #endif
 }
-
-#define route_foreach_from(c, from)  \
-        for (c = from; !rlist_entry_is_head(c, &from->route->list, in_route); \
-        c = rlist_next_entry(c, in_route))
-
-#define depot_head(r) rlist_first_entry(&r->list, struct customer, in_route)
-#define depot_tail(r) rlist_last_entry(&r->list, struct customer, in_route)
-
-#define route_prev(c) rlist_prev_entry(c, in_route)
-#define route_next(c) rlist_next_entry(c, in_route)
 
 struct route *
 route_new(void);
@@ -58,6 +80,12 @@ route_init_penalty(struct route *r);
 void
 route_update_penalty(struct route *r, struct customer *forward_start,
 		     struct customer *backward_start);
+
+void
+route_insert_customer(struct route *r, int idx, struct customer *c);
+
+struct customer *
+route_remove_customer(struct route *r, int idx);
 
 struct route *
 route_dup(struct route *r);

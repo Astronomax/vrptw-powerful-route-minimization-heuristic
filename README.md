@@ -37,7 +37,7 @@ Results on Gehring & Homberger 1000-customer instances (60 test cases):
 | Time Limit | This Implementation | Paper Results |
 |------------|---------------------|---------------|
 | 10 minutes | 3423                | 3420          |
-| 60 minutes | 3420                | 3419          |
+| 60 minutes | 3418                | 3419          |
 | 5 hours    | 3418                | 3417          |
 
 The table shows the total number of routes across all 60 test instances. The optimal sum (if all instances reached their current best-known solution) is 3416 (see this commit date).

@@ -14,8 +14,12 @@ generate_random_customer(void)
 	c->e = (double)real_random_in_range(0, 50);
 	c->l = c->e + (double)real_random_in_range(0, 50);
 	c->s = (double)real_random_in_range(0, 20);
-	//c->p = (int)real_random_in_range(0, 5);
+	c->route = NULL;
+	c->idx = -1;
 	rlist_create(&c->in_route);
+	rlist_create(&c->in_eject);
+	rlist_create(&c->in_eject_temp);
+	rlist_create(&c->in_opt_eject);
 	return c;
 }
 

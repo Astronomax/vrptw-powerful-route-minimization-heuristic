@@ -67,7 +67,7 @@ void ALWAYS_INLINE
 solution_check_missed_customers(struct solution *s) {
 	(void)s;
 #ifndef NDEBUG
-	static bool used[MAX_N_CUSTOMERS];
+	static bool used[MAX_N_CUSTOMERS + 1];
 	for (int i = 0; i <= p.n_customers; i++)
 		used[i] = false;
 	int cnt = 0;
