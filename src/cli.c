@@ -33,9 +33,12 @@ usage(void)
 	printf("  --n_near <value>        - Sets the preferred n_near.\n");
 	printf("  --k_max <value>         - Sets the preferred k_max.\n");
 	printf("  --t_max <value>         - Sets the preferred t_max (in secs).\n");
+	printf("  --t_max_ms <value>      - Sets the budget in milliseconds (overrides --t_max).\n");
 	printf("  --i_rand <value>        - Sets the preferred i_rand.\n");
 	printf("  --lower_bound <value>   - Sets the preferred lower_bound.\n");
 	printf("  --seed <value>          - Sets the pseudo-random seed.\n");
+	printf("  --initial_solution <f>  - Import initial solution from file.\n");
+	printf("  --log_incumbent_solutions - Emit full incumbent routes as JSON lines.\n");
 }
 
 bool
@@ -142,8 +145,23 @@ parse_option(void)
 				options.k_max = parse_next_int_value("k_max");
 				return;
 			}
+			if (match_longopt("t_max_ms")) {
+				options.t_max_ms = (int64_t)parse_next_int_value("t_max_ms");
+				options.has_t_max_ms = true;
+				return;
+			}
 			if (match_longopt("t_max")) {
 				options.t_max = (clock_t)parse_next_int_value("t_max");
+				return;
+			}
+			if (match_longopt("initial_solution")) {
+				if (at_end())
+					panic("error: --initial_solution needs a file path.");
+				options.initial_solution_file = next_arg();
+				return;
+			}
+			if (match_longopt("log_incumbent_solutions")) {
+				options.log_incumbent_solutions = true;
 				return;
 			}
 			if (match_longopt("i_rand")) {
@@ -179,11 +197,15 @@ parse_arguments(int argc, const char *argv[])
 
 	options.problem_file = args[1];
 	options.solution_file = args[2];
+	options.initial_solution_file = NULL;
+	options.log_incumbent_solutions = false;
 	options.beta_correction = false;
 	options.log_level = LOGLEVEL_VERBOSE;
 	options.n_near = 100;
 	options.k_max = 5;
 	options.t_max = (clock_t)365 * 86400 * 100;
+	options.t_max_ms = -1;
+	options.has_t_max_ms = false;
 	options.i_rand = 1000;
 	options.lower_bound = 0;
 	options.has_seed = false;

@@ -31,6 +31,14 @@ solution_modification_neighbourhood_f(va_list ap);
 struct solution *
 solution_default(void);
 
+/**
+ * Build a solution from an external file.
+ * File format: one route per line, space-separated 1-indexed customer IDs.
+ * Panics on validation failure or infeasible solution.
+ */
+struct solution *
+solution_decode(const char *file);
+
 /* TODO: deprecate */
 struct solution *
 solution_dup(struct solution *s);
@@ -52,6 +60,12 @@ solution_feasible(struct solution *s);
 
 void
 solution_print(struct solution *s);
+
+double
+solution_routing_cost(struct solution *s);
+
+void
+solution_print_incumbent_json(struct solution *s, long elapsed_ms);
 
 void ALWAYS_INLINE
 solution_check_routes(struct solution *s)
