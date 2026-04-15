@@ -22,6 +22,15 @@ const char	*RESET 	= "\033[0m",
 	fflush(stdout);												\
 } while (0)
 
+static void
+log_incumbent(struct solution *s, long elapsed_ms)
+{
+	printf("incumbent_ms: %ld n_routes: %d\n", elapsed_ms, s->n_routes);
+	fflush(stdout);
+	if (options.log_incumbent_solutions)
+		solution_print_incumbent_json(s, elapsed_ms);
+}
+
 int
 insert_feasible(struct solution *s)
 {
@@ -376,12 +385,28 @@ eama_solver_solve(void)
 	eama_solver.alpha = eama_solver.beta = 1.;
 	memset(&eama_solver.p[0], 0, sizeof(eama_solver.p));
 
-	clock_t deadline = clock() + CLOCKS_PER_SEC * options.t_max;
+	/* Compute deadline with sub-second precision when --t_max_ms is used */
+	clock_t start_clock = clock();
+	clock_t deadline;
+	if (options.has_t_max_ms)
+		deadline = start_clock +
+			   (clock_t)((double)options.t_max_ms / 1000.0 * CLOCKS_PER_SEC);
+	else
+		deadline = start_clock + CLOCKS_PER_SEC * options.t_max;
+
 	int lower_bound = MAX(problem_routes_straight_lower_bound(),
 			      options.lower_bound);
 
-	struct solution *s = solution_default();
+	/* Build initial solution: imported or default (trivial) */
+	struct solution *s;
+	if (options.initial_solution_file != NULL)
+		s = solution_decode(options.initial_solution_file);
+	else
+		s = solution_default();
 	solution_check_missed_customers(s);
+
+	/* Log initial incumbent at t=0 */
+	log_incumbent(s, 0);
 
 	while (s->n_routes > lower_bound) {
 		if (options.log_level >= LOGLEVEL_NORMAL)
@@ -392,6 +417,12 @@ eama_solver_solve(void)
 		assert(s->w == NULL);
 		solution_check_missed_customers(s);
 		assert(rlist_empty(&s->ejection_pool));
+
+		/* Log incumbent after successful route deletion */
+		clock_t now = clock();
+		long elapsed_ms = (long)((double)(now - start_clock) /
+					 CLOCKS_PER_SEC * 1000.0);
+		log_incumbent(s, elapsed_ms);
 	}
 	assert(s->w == NULL);
 	assert(rlist_empty(&s->ejection_pool));

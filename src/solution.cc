@@ -4,11 +4,16 @@
 #include "modification.h"
 
 #include <cassert>
+#include <cstdio>
+#include <cstring>
 
 #include "core/fiber.h"
 #include "core/random.h"
 #include "core/exception.h"
 
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <vector>
 #include <algorithm>
 
@@ -367,6 +372,54 @@ solution_print(solution *s)
 	fflush(stdout);
 }
 
+double
+solution_routing_cost(solution *s)
+{
+	double total = 0.;
+	for (int i = 0; i < s->n_routes; i++) {
+		route *r = s->routes[i];
+		customer *prev = depot_head(r);
+		for (customer *curr = route_next(prev);
+		     curr != depot_tail(r);
+		     curr = route_next(curr)) {
+			total += dist(prev, curr);
+			prev = curr;
+		}
+		total += dist(prev, depot_tail(r));
+	}
+	return total;
+}
+
+void
+solution_print_incumbent_json(solution *s, long elapsed_ms)
+{
+	printf(
+		"incumbent_solution_json: "
+		"{\"elapsed_ms\":%ld,\"num_routes\":%d,\"native_cost\":%.12f,\"routes\":[",
+		elapsed_ms,
+		s->n_routes,
+		solution_routing_cost(s)
+	);
+	for (int i = 0; i < s->n_routes; i++) {
+		if (i > 0)
+			printf(",");
+		printf("[");
+		bool first_customer = true;
+		customer *c;
+		route_foreach(c, s->routes[i]) {
+			if (c->id == 0)
+				continue;
+			if (!first_customer)
+				printf(",");
+			printf("%d", c->id);
+			first_customer = false;
+		}
+		printf("]");
+	}
+	printf("]}\n");
+	fflush(stdout);
+}
+
 solution *
 solution_default(void)
 {
@@ -391,6 +444,103 @@ solution_default(void)
 		++i;
 	}
 	assert(i == p.n_customers);
+	return s;
+}
+
+solution *
+solution_decode(const char *file)
+{
+	std::string file_string{file};
+	std::ifstream f{file_string};
+	if (!f.is_open())
+		panic("solution_decode: cannot open file '%s'", file);
+
+	/* Parse routes: one route per line, space-separated 1-indexed customer IDs */
+	std::vector<std::vector<int>> parsed_routes;
+	std::string line;
+	while (std::getline(f, line)) {
+		/* skip blank lines and comments */
+		size_t first = line.find_first_not_of(" \t\r\n");
+		if (first == std::string::npos)
+			continue;
+		if (line[first] == '#')
+			continue;
+
+		std::istringstream iss(line);
+		std::vector<int> route_ids;
+		int id;
+		while (iss >> id)
+			route_ids.push_back(id);
+		if (route_ids.empty())
+			continue;
+		parsed_routes.push_back(std::move(route_ids));
+	}
+
+	if (parsed_routes.empty())
+		panic("solution_decode: file '%s' contains no routes", file);
+
+	/* Validate: all customers present exactly once, no depot, in range */
+	bool used[MAX_N_CUSTOMERS + 1];
+	memset(used, 0, sizeof(used));
+	int total_customers = 0;
+
+	for (int ri = 0; ri < (int)parsed_routes.size(); ri++) {
+		if (parsed_routes[ri].empty())
+			panic("solution_decode: route %d is empty", ri + 1);
+		for (int cid : parsed_routes[ri]) {
+			if (cid == 0)
+				panic("solution_decode: depot (0) must not appear in initial solution");
+			if (cid < 1 || cid > p.n_customers)
+				panic("solution_decode: customer ID %d out of range [1, %d]",
+				      cid, p.n_customers);
+			if (used[cid])
+				panic("solution_decode: customer %d appears more than once", cid);
+			used[cid] = true;
+			total_customers++;
+		}
+	}
+
+	if (total_customers != p.n_customers) {
+		int missing = 0;
+		for (int i = 1; i <= p.n_customers; i++)
+			if (!used[i]) missing++;
+		panic("solution_decode: %d customer(s) missing from initial solution", missing);
+	}
+
+	/* Build solution following the same pattern as solution_default() */
+	auto *s = (solution *)xmalloc(sizeof(solution) +
+		sizeof(struct route *) * p.n_customers);
+
+	s->w = nullptr;
+
+	RLIST_HEAD(problem_customers);
+	problem_customers_dup(&problem_customers);
+	s->meta = solution_meta_new(&problem_customers);
+	assert(rlist_empty(&problem_customers));
+
+	rlist_create(&s->ejection_pool);
+	s->n_routes = (int)parsed_routes.size();
+
+	/* Temp array for route_init */
+	struct customer *arr[MAX_N_CUSTOMERS];
+
+	for (int i = 0; i < s->n_routes; i++) {
+		const auto &rids = parsed_routes[i];
+		int n = (int)rids.size();
+		for (int j = 0; j < n; j++)
+			arr[j] = s->meta->idx[rids[j]];
+
+		route *r = route_new();
+		route_init(r, arr, n);
+		s->routes[i] = r;
+	}
+
+	/* Post-build validation */
+	solution_check_missed_customers(s);
+	if (!solution_feasible(s))
+		panic("solution_decode: imported solution is infeasible "
+		      "(time windows or capacity violated)");
+
 	return s;
 }
 
