@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+title: vrptw-powerful-route-minimization-heuristic
+message: >-
+  If you use vrptw-powerful-route-minimization-heuristic, please cite it
+  using the metadata from this file.
+type: software
+authors:
+  - given-names: Anton
+    family-names: Kuznets
+    alias: Astronomax
+    orcid: "https://orcid.org/0009-0006-3529-5461"
+  - given-names: Florian
+    family-names: Rascoussier
+    alias: Onyr
+    affiliation: IMT Atlantique; INSA Lyon
+    orcid: "https://orcid.org/0009-0005-3253-9814"
+identifiers:
+  - type: swh
+    value: "swh:1:dir:77326581aefa4983f6bcf6c31fa171b45d0367c2"
+    description: >-
+      Software Heritage archived directory for
+      vrptw-powerful-route-minimization-heuristic.
+url: "https://archive.softwareheritage.org/swh:1:dir:77326581aefa4983f6bcf6c31fa171b45d0367c2;origin=https://github.com/Astronomax/vrptw-powerful-route-minimization-heuristic;visit=swh:1:snp:f0fc23848484ec8d701c177db02651f12271d48b;anchor=swh:1:rev:3f7048bd3ebe3c59186148d1d4f915825b4cfa2d"
+repository-code: "https://github.com/Astronomax/vrptw-powerful-route-minimization-heuristic"
+abstract: >-
+  vrptw-powerful-route-minimization-heuristic is an open-source implementation 
+  of the Nagata-Braysy Route Minimization Heuristic (NBRMH) 
+  for the vehicle routing problem with time windows (VRPTW). NBRMH
+  targets the first stage of the hierarchical VRPTW objective by minimizing
+  the number of routes before distance optimization. Starting from an
+  over-routed solution, it repeatedly deletes a route, places its customers in
+  an ejection pool, and reinserts them into the remaining routes using an
+  escalating ejection-chain strategy: direct feasible insertion, squeeze moves
+  with temporary infeasibility and repair, and bounded insertion-with-ejection
+  guided by adaptive penalties and diversification.
+keywords:
+  - vehicle routing problem
+  - vehicle routing problem with time windows
+  - VRPTW
+  - time windows
+  - route minimization
+  - operations research
+  - applied algorithmics
+  - heuristic
+  - ejection chain
+license: MIT
