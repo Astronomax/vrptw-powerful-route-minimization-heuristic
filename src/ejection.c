@@ -89,7 +89,7 @@ feasible_ejections_f(va_list ap)
 		do {
 		/** backtrack */
 			s_first = e_last;
-			s[s_size++] = s_first;
+			s_size++;
 			--(*e_size_out);
 
 			if (unlikely(k == 1)) {
@@ -97,21 +97,16 @@ feasible_ejections_f(va_list ap)
 				return 0;
 			}
 
+			int prev_idx = e_last->idx;
 			e_last = e[*e_size_out - 1];
 			p_sum -= ps[s_first->id];
 			total_demand += s_first->demand;
 
-			while (ne_size > 0) {
-				ne_last = ne[ne_size - 1];
-				if (ne_last->idx <= e_last->idx)
-					break;
-				/**
-				 * Let's ignore that s_first becomes irrelevant.
-				 * We will update it once later.
-				 */
-				s[s_size++] = ne_last;
-				--ne_size;
-			}
+			int delt = prev_idx - e_last->idx - 1;
+			assert(delt >= 0);
+			ne_size -= delt;
+			s_size += delt;
+
 			ne_last = ne[ne_size - 1];
 			s_first = s[s_size - 1];
 			--k;
