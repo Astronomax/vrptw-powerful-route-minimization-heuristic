@@ -31,6 +31,7 @@ feasible_ejections_f(va_list ap)
 	if (k_max <= 0)
 		return 0;
 
+	bool feasible[MAX_N_CUSTOMERS + 2];
 	struct customer *ne[MAX_N_CUSTOMERS + 2];
 	struct customer *s[MAX_N_CUSTOMERS + 2];
 	int ne_size = 1, s_size = 0;
@@ -58,9 +59,8 @@ feasible_ejections_f(va_list ap)
 	struct customer *e_last;
 	struct customer *s_first = s[s_size - 1];
 
-	int ejected_infeasibles_count = 0;
-
 	bool incremented_last = false;
+
 	goto incr_k;
 	for(;;) {
 		if (/** Is better than current optimum */
@@ -100,7 +100,6 @@ feasible_ejections_f(va_list ap)
 			e_last = e[*e_size_out - 1];
 			p_sum -= ps[s_first->id];
 			total_demand += s_first->demand;
-			ejected_infeasibles_count -= (s_first->l < s_first->a_earliest);
 
 			while (ne_size > 0) {
 				ne_last = ne[ne_size - 1];
@@ -130,8 +129,8 @@ feasible_ejections_f(va_list ap)
 
 			p_sum -= ps[ne_last->id];
 			total_demand += ne_last->demand;
-			ejected_infeasibles_count -= (ne_last->l < ne_last->a_earliest);
 			--k;
+			feasible[k - 1] &= ne_last->a_earliest <= ne_last->l;
 		incr_k:
 			assert(s_first == s[s_size - 1]);
 			e_last = s_first;
@@ -140,8 +139,8 @@ feasible_ejections_f(va_list ap)
 			e[(*e_size_out)++] = e_last;
 			p_sum += ps[e_last->id];
 			total_demand -= e_last->demand;
-			ejected_infeasibles_count += (e_last->l < e_last->a_earliest);
 			++k;
+			feasible[k - 1] = e_last->a_earliest <= e_last->l;
 		/** update */
 			assert(ne_last == ne[ne_size - 1]);
 			e_last->a_earliest_temp = MAX(e_last->e,
@@ -151,11 +150,11 @@ feasible_ejections_f(va_list ap)
 				ne_last->a_temp + ne_last->s + dist(ne_last, s_first));
 			s_first->a_temp = MIN(s_first->a_earliest_temp, s_first->l);
 		} while (/* b) */
-				 ne_last->l < ne_last->a_earliest_temp ||
-				 /* c) */
-				 (k > 1 && incremented_last &&
-				  ejected_infeasibles_count - (e_last->l < e_last->a_earliest) == 0 &&
-				  ne_last->a_earliest_temp == ne_last->a_earliest && !capacity_violated));
+			 ne_last->l < ne_last->a_earliest_temp ||
+			 /* c) */
+			 (k > 1 && incremented_last && feasible[k - 2] &&
+			  ne_last->a_earliest_temp == ne_last->a_earliest &&
+			  !capacity_violated))
 	}
 	unreachable();
 }
