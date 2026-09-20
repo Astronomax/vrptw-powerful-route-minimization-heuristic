@@ -97,6 +97,7 @@ ejections_random_route(int n_tests)
 
 	for (int i = 0; i < n_tests; i++) {
 		generate_random_problem(MAX_N_CUSTOMERS_TEST);
+		problem_init_distance_matrix();
 
 		for (int j = 0; j <= MAX_N_CUSTOMERS_TEST; j++)
 			ps[j] = randint(1, 5);
