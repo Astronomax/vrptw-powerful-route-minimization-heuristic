@@ -53,12 +53,6 @@ feasible_ejections_f(va_list ap)
 	int64_t p_sum = 0;
 	/** The last ejected customer. Will be initialized after incr_k */
 	struct customer *e_last;
-	/**
-	 * Used only for pruning condition c. See the comment at the condition
-	 * of do-while.
-	 */
-	bool feasible[MAX_N_CUSTOMERS + 2];
-	bool incremented_last = false;
 	/** Initialize `a_earliest`. Used only for pruning condition c. */
 	struct customer *prev = depot_head(r);
 	prev->a_earliest = prev->e;
@@ -68,8 +62,6 @@ feasible_ejections_f(va_list ap)
 		assert(next->a == MIN(next->a_earliest, next->l));
 		prev = next;
 	}
-	/** Is the capacity contraint violated initially. */
-	bool capacity_violated = total_demand > p.vc;
 	/** There is no ejected customers now. Let's eject first. */
 	goto incr_k;
 	for(;;) {
@@ -98,10 +90,8 @@ feasible_ejections_f(va_list ap)
 			 * If `p_sum` >= `p_best`, there is no point in ejecting any further
 			 * vertices. None of the deeper branches will update the current optimum.
 			 */
-			if (p_sum < *p_best && *k < k_max) {
-				incremented_last = false;
+			if (p_sum < *p_best && *k < k_max)
 				goto incr_k;
-			}
 			goto incr_last;
 		}
 		do {
@@ -133,7 +123,6 @@ feasible_ejections_f(va_list ap)
 			ne_last = ne[ne_size - 1];
 			s_first = s[s_size - 1];
 		incr_last:
-			incremented_last = true;
 			ne[ne_size++] = e_last;
 			p_sum -= ps[e_last->id];
 			total_demand += e_last->demand;
@@ -147,16 +136,6 @@ feasible_ejections_f(va_list ap)
 				prev->a_temp + prev->s + dist(prev, ne_last)));
 			DEBUG_ASSERT_NEAR(ne_last->a_temp, MIN(ne_last->a_earliest_temp, ne_last->l));
 		#endif
-			/*
-			 *  just got back ---+
-			 *                   v
-			 * ... [e] [ne] [ne] [ne] [s ...]
-			 *     <-----+---->  ^
-			 *           |       +---- let's account this guy
-			 * feasible [k - 1] now accounts only
-			 */
-			if (*k > 0)
-				feasible[(*k) - 1] &= ne_last->a_earliest <= ne_last->l;
 		incr_k:
 			assert(s_first == s[s_size - 1]);
 			e[*k] = s_first;
@@ -165,12 +144,6 @@ feasible_ejections_f(va_list ap)
 			e_last = s_first;
 			s_first = s[--s_size - 1];
 			++(*k);
-			/*
-			 * just ejected, there no `ne` after it for now
-			 *      v
-			 * ... [e] [s ...]
-			 */
-			feasible[(*k) - 1] = e_last->a_earliest <= e_last->l;
 		/** update */
 			assert(ne_last == ne[ne_size - 1]);
 			/*
@@ -189,26 +162,7 @@ feasible_ejections_f(va_list ap)
 			 * `ne_last` is already violating the constraint, so there is no point
 			 * in examining deeper branches - backtrack.
 			 */
-			 ne_last->l < ne_last->a_earliest_temp ||
-			 /* c)
-			  * ... [e] [ne] [ne] [e] [s ...]
-			  *     <----------->
-			  * There is no initially infeasible among previous [e] and consecutive
-			  * [ne] after it.
-			  * - If [e] were infeasible, it means we discarded it, that makes sense.
-			  * - If one of the [ne] was infeasible, it means it has become feasible
-			  * (otherwise condition b would have triggered), that makes sense.
-			  * Alternatively, [e] need not be ejected, the segment remains feasible,
-			  * and the `a_earliest` value remains unchanged.
-			  * Although for k > 2, this is a rather dubious statement. TODO: think about it.
-			  * In the article, condition c looks different, and I also don't
-			  * understand why it should work. Moreover, as I see it, I have counterexamples.
-			  * This nonsense with `feasible` array is my attempt to fix the correctness
-			  * of this condition as I understand it.
-			  */
-			 ((*k) > 1 && incremented_last && feasible[(*k) - 2] &&
-			  ne_last->a_earliest_temp == ne_last->a_earliest &&
-			  !capacity_violated));
+			 ne_last->l < ne_last->a_earliest_temp);
 	}
 	unreachable();
 }
