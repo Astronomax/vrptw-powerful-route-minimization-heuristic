@@ -107,21 +107,11 @@ squeeze(struct solution *s)
 		assert(!route_feasible(v_route));
 
 		double v_route_penalty = route_penalty(v_route, eama_solver.alpha, eama_solver.beta);
-		struct modification opt_modification = modification_new(INSERT, NULL, NULL);
-		double opt_delta = INFINITY;
-		struct modification m;
-		struct fiber *f = fiber_new(solution_modification_neighbourhood_f);
-		fiber_start(f, s, v_route, options.n_near, &m);
-		while (!fiber_is_dead(f)) {
-			double delta = modification_delta(m, eama_solver.alpha, eama_solver.beta);
-			if (delta < opt_delta) {
-				opt_modification = m;
-				opt_delta = delta;
-				if (opt_delta <= -v_route_penalty + EPS5)
-					fiber_cancel(f);
-			}
-			fiber_call(f);
-		}
+		struct modification opt_modification;
+		double opt_delta = solution_find_best_modification(
+			s, v_route,
+			eama_solver.alpha, eama_solver.beta,
+			-v_route_penalty + EPS5, &opt_modification, options.simd);
 
 		if (options.log_level == LOGLEVEL_VERBOSE)
 			debug_print(tt_sprintf("opt modification delta: %f", opt_delta), RESET);

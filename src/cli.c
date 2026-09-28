@@ -177,6 +177,10 @@ parse_option(void)
 				options.has_seed = true;
 				return;
 			}
+			if (match_longopt("simd")) {
+				options.simd = true;
+				return;
+			}
 		default:
 			break;
 	}
@@ -210,6 +214,7 @@ parse_arguments(int argc, const char *argv[])
 	options.lower_bound = 0;
 	options.has_seed = false;
 	options.seed = 0;
+	options.simd = false;
 
 	for (arg_index = 3; arg_index < arg_count; arg_index++)
 	{

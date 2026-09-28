@@ -29,6 +29,7 @@ struct cli_options {
     int lower_bound;
     bool has_seed;
     uint64_t seed;
+    bool simd;
 };
 
 extern struct cli_options options;

@@ -25,8 +25,27 @@ struct solution {
 void
 solution_global_init();
 
-int
-solution_modification_neighbourhood_f(va_list ap);
+/**
+ * Iterate all candidate modifications that move a vertex of route `r` to
+ * another position (inter- and intra-route OUT_RELOCATE / EXCHANGE /
+ * TWO_OPT), and return the one with the minimum penalty delta.
+ *
+ * Writes the best modification into `*out` and returns its delta
+ * (alpha * c_penalty_delta + beta * tw_penalty_delta). Returns INFINITY
+ * (with `*out` left as a null INSERT) when no applicable candidate exists.
+ *
+ * `early_exit_delta` short-circuits the search: as soon as the running best
+ * delta is <= early_exit_delta, the function returns immediately. Pass
+ * -v_route_penalty + EPS5 from the caller to stop once an improving move is
+ * found.
+ *
+ * Replaces the former fiber generator solution_modification_neighbourhood_f.
+ */
+double
+solution_find_best_modification(struct solution *s, struct route *r,
+				double alpha, double beta,
+				double early_exit_delta,
+				struct modification *out, bool simd);
 
 struct solution *
 solution_default(void);
