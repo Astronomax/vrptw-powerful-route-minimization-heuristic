@@ -430,11 +430,10 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 	int i = 0;
 	for (; i < n_padded; i += 4) {
 		const __m128i ids_w  = _mm_loadu_si128((const __m128i *)(soa->id + i));
+		/* dist is symmetric (dm[a][b] == dm[b][a]); gather each column over
+		 * the fixed v-side row instead of 4 strided cold loads via set_pd. */
 		const __m256d d_vm_w = _mm256_i32gather_pd(&dm[vm_id][0], ids_w, 8);
-		const __m256d d_w_v  = _mm256_set_pd(dm[soa->id[i+3]][v_id],
-						     dm[soa->id[i+2]][v_id],
-						     dm[soa->id[i+1]][v_id],
-						     dm[soa->id[i+0]][v_id]);
+		const __m256d d_w_v  = _mm256_i32gather_pd(&dm[v_id][0], ids_w, 8);
 
 		const __m256d e = _mm256_loadu_pd(soa->e + i);
 		const __m256d l = _mm256_loadu_pd(soa->l + i);
@@ -466,14 +465,11 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 
 		__m256d ex_tot = or_tot, to_tot = or_tot;
 		if (do_all3) {
-			const __m256d d_w_vp = _mm256_set_pd(dm[soa->id[i+3]][vp_id],
-							     dm[soa->id[i+2]][vp_id],
-							     dm[soa->id[i+1]][vp_id],
-							     dm[soa->id[i+0]][vp_id]);
-			const __m256d d_wm_v = _mm256_set_pd(dm[soa->wm_id[i+3]][v_id],
-							     dm[soa->wm_id[i+2]][v_id],
-							     dm[soa->wm_id[i+1]][v_id],
-							     dm[soa->wm_id[i+0]][v_id]);
+			/* dm[w_id][vp_id] == dm[vp_id][w_id] (symmetric) -> row gather. */
+			const __m256d d_w_vp = _mm256_i32gather_pd(&dm[vp_id][0], ids_w, 8);
+			/* dm[wm_id][v_id] == dm[v_id][wm_id] -> gather v_id row by wm_ids. */
+			const __m128i ids_wm = _mm_loadu_si128((const __m128i *)(soa->wm_id + i));
+			const __m256d d_wm_v = _mm256_i32gather_pd(&dm[v_id][0], ids_wm, 8);
 			const __m128i ids_wp = _mm_loadu_si128((const __m128i *)(soa->wp_id + i));
 			const __m256d d_v_wp = _mm256_i32gather_pd(&dm[v_id][0], ids_wp, 8);
 
