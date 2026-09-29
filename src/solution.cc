@@ -255,7 +255,8 @@ solution_global_init()
  * -- this is what lets the AVX2 kernel below fill its lanes.
  */
 struct w_soa {
-	int n;
+	int n;		/* real (non-depot) customer count */
+	int n_padded;	/* n rounded up to a multiple of 4 (padding lanes) */
 	customer *w_ptr[MAX_N_CUSTOMERS];
 	int id[MAX_N_CUSTOMERS];
 	int wm_id[MAX_N_CUSTOMERS];	/* w_minus->id */
@@ -302,6 +303,31 @@ build_w_soa(struct route *r, struct w_soa *soa)
 		soa->wp_demand_sf[k] = wp->demand_sf;
 		soa->eject_tw[k] = tw_penalty_get_eject_delta_inline(w);
 		soa->eject_c[k] = c_penalty_get_eject_delta_inline(w);
+	}
+	/*
+	 * Pad to a multiple of 4 so the AVX2 kernel has no scalar tail. Padding
+	 * lanes are masked to +infinity in the kernel (via eject_tw/eject_c and
+	 * a blend mask), so they never win the min-reduce and their w_ptr
+	 * (NULL) is never dereferenced.
+	 */
+	int n_padded = (n + 3) & ~3;
+	soa->n_padded = n_padded;
+	for (int k = n; k < n_padded; k++) {
+		soa->w_ptr[k] = nullptr;
+		soa->id[k] = 0;
+		soa->wm_id[k] = 0;
+		soa->wp_id[k] = 0;
+		soa->e[k] = 0.; soa->l[k] = 0.; soa->s[k] = 0.;
+		soa->demand[k] = 0.;
+		soa->demand_pf[k] = 0.;
+		soa->tw_pf[k] = 0.; soa->a[k] = 0.;
+		soa->wm_tw_pf[k] = 0.;
+		soa->wm_a[k] = 0.; soa->wm_s[k] = 0.;
+		soa->wp_tw_sf[k] = 0.;
+		soa->wp_z[k] = 0.;
+		soa->wp_demand_sf[k] = 0.;
+		soa->eject_tw[k] = INFINITY;
+		soa->eject_c[k] = INFINITY;
 	}
 }
 
@@ -399,8 +425,10 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 #undef B
 
 	const int n = soa->n;
+	const int n_padded = soa->n_padded;
+	const __m256d inf_vec = _mm256_set1_pd(INFINITY);
 	int i = 0;
-	for (; i + 3 < n; i += 4) {
+	for (; i < n_padded; i += 4) {
 		const __m128i ids_w  = _mm_loadu_si128((const __m128i *)(soa->id + i));
 		const __m256d d_vm_w = _mm256_i32gather_pd(&dm[vm_id][0], ids_w, 8);
 		const __m256d d_w_v  = _mm256_set_pd(dm[soa->id[i+3]][v_id],
@@ -432,7 +460,7 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 			_mm256_sub_pd(_mm256_add_pd(b_dtail_v, demand), b_pvc));
 		const __m256d or_c = _mm256_add_pd(eject_c,
 			_mm256_sub_pd(ins_pc, b_c_pen_v));
-		const __m256d or_tot = _mm256_add_pd(
+		__m256d or_tot = _mm256_add_pd(
 			_mm256_mul_pd(b_alpha, or_c),
 			_mm256_mul_pd(b_beta, or_tw));
 
@@ -524,6 +552,20 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 					       _mm256_mul_pd(b_beta, to_tw));
 		}
 
+		/*
+		 * Mask out padding lanes (i+k >= n) by forcing their deltas to
+		 * +infinity, so they never win the min-reduce and their w_ptr
+		 * (NULL) is never dereferenced. For full interior batches every
+		 * lane is valid, so sel is all-zero and the blends are no-ops.
+		 */
+		const __m256d sel = _mm256_set_pd(i + 3 >= n ? -1.0 : 0.0,
+						 i + 2 >= n ? -1.0 : 0.0,
+						 i + 1 >= n ? -1.0 : 0.0,
+						 i + 0 >= n ? -1.0 : 0.0);
+		or_tot = _mm256_blendv_pd(or_tot, inf_vec, sel);
+		ex_tot = _mm256_blendv_pd(ex_tot, inf_vec, sel);
+		to_tot = _mm256_blendv_pd(to_tot, inf_vec, sel);
+
 		/* scalar min-reduce over the 3 type-vectors x 4 lanes */
 		double or_a[4], ex_a[4], to_a[4];
 		_mm256_storeu_pd(or_a, or_tot);
@@ -532,6 +574,8 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 #ifndef NDEBUG
 		/* Verify each SIMD delta against the scalar modification_delta(). */
 		for (int k = 0; k < 4; k++) {
+			if (i + k >= n)
+				continue;	/* padding lane */
 			customer *w = soa->w_ptr[i + k];
 			double s_or = modification_delta(
 				modification_new(OUT_RELOCATE, v, w), alpha, beta);
@@ -580,25 +624,12 @@ simd_inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 		if (*best_delta <= early_exit_delta)
 			return true;
 	}
-	/* tail (scalar) */
-	for (; i < n; i++) {
-		customer *w = soa->w_ptr[i];
-		if (do_all3) {
-			if (try_candidate(modification_new(TWO_OPT, v, w),
-					  alpha, beta, early_exit_delta, best_m, best_delta))
-				return true;
-			if (try_candidate(modification_new(EXCHANGE, v, w),
-					  alpha, beta, early_exit_delta, best_m, best_delta))
-				return true;
-		}
-		if (try_candidate(modification_new(OUT_RELOCATE, v, w),
-				  alpha, beta, early_exit_delta, best_m, best_delta))
-			return true;
-	}
+	(void)scalar_inter_batch;
 	return false;
 #else
-	fprintf(stderr, "SIMD is not supported!"\n);
-	abort()
+	/* !__AVX2__: inter_batch() routes to scalar_inter_batch at runtime. */
+	return scalar_inter_batch(v, soa, alpha, beta, early_exit_delta,
+				  best_m, best_delta);
 #endif
 }
 
