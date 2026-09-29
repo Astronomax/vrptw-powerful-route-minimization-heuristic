@@ -13,8 +13,6 @@ struct route;
 
 struct customer {
 	int id;
-	double x;
-	double y;
 	double demand;
 	double e;
 	double l;
@@ -25,9 +23,6 @@ struct customer {
 	distance_attr;
 	struct route *route;
 	struct rlist in_route;
-	struct rlist in_eject;
-	struct rlist in_eject_temp;
-	struct rlist in_opt_eject;
 };
 
 #define is_ejected(c) ((c)->route == NULL)

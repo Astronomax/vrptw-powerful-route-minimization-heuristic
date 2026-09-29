@@ -247,7 +247,7 @@ insert_eject(struct solution *s)
 			 * that minimizes the sum p of the ejected customers
 			 */
 			struct fiber *f = fiber_new(feasible_ejections_f);
-			fiber_start(f, v_route, options.k_max, eama_solver.p,
+			fiber_start(f, v_route, options.k_max,
 				    ejection, &ejection_size, &p_best);
 			while(!fiber_is_dead(f)) {
 				opt_insertion = m;
@@ -293,7 +293,7 @@ insert_eject(struct solution *s)
 		struct modification m = modification_new(EJECT, c, NULL);
 		assert(modification_applicable(m));
 		modification_apply(m);
-		rlist_add_tail_entry(&s->ejection_pool, c, in_eject);
+		s->ejection_pool[s->ejection_pool_size++] = c;
 	}
 
 	if (options.log_level == LOGLEVEL_VERBOSE)
@@ -310,7 +310,7 @@ delete_route(struct solution *s, clock_t deadline)
 	if (options.log_level == LOGLEVEL_VERBOSE)
 		debug_print("started", RESET);
 
-	assert(rlist_empty(&s->ejection_pool));
+	assert(s->ejection_pool_size == 0);
 	assert(solution_feasible(s));
 	/* TODO: don't dup solution, instead use some persistent structure */
 	struct solution *s_dup = solution_dup(s);
@@ -318,21 +318,17 @@ delete_route(struct solution *s, clock_t deadline)
 	assert(solution_feasible(s));
 	solution_check_missed_customers(s);
 
-	while (!rlist_empty(&s->ejection_pool)) {
+	while (s->ejection_pool_size > 0) {
 		/** This will only be executed once during the entire execution time */
 		if (unlikely(clock() >= deadline))
 			goto fail;
 
 		if (options.log_level == LOGLEVEL_VERBOSE) {
-			struct customer *c;
-			int n_ejected = 0;
-			rlist_foreach_entry(c, &s->ejection_pool, in_eject) ++n_ejected;
-			debug_print(tt_sprintf("ejection_pool: %d", n_ejected), RESET);
+			debug_print(tt_sprintf("ejection_pool: %d",
+				s->ejection_pool_size), RESET);
 		}
 		/** remove v from EP with the LIFO strategy */
-		s->w = rlist_last_entry(
-			&s->ejection_pool, struct customer, in_eject);
-		rlist_del_entry(s->w, in_eject);
+		s->w = s->ejection_pool[--s->ejection_pool_size];
 
 		assert(solution_find_customer_by_id(s, s->w->id) == s->w);
 
@@ -345,9 +341,9 @@ delete_route(struct solution *s, clock_t deadline)
 			continue;
 		}
 		assert(solution_find_customer_by_id(s, s->w->id) == s->w);
-		++eama_solver.p[s->w->id];
+		++s->w->p;
 		if (options.log_level == LOGLEVEL_VERBOSE)
-			debug_print(tt_sprintf("p[%d] = %ld", s->w->id, eama_solver.p[s->w->id]), RESET);
+			debug_print(tt_sprintf("p[%d] = %ld", s->w->id, s->w->p), RESET);
 
 		if (insert_eject(s) == 0) {
 			solution_check_missed_customers(s);
@@ -373,7 +369,13 @@ eama_solver_solve(void)
 		debug_print("started", RESET);
 
 	eama_solver.alpha = eama_solver.beta = 1.;
-	memset(&eama_solver.p[0], 0, sizeof(eama_solver.p));
+	//memset(&eama_solver.p[0], 0, sizeof(eama_solver.p));
+	{
+		struct customer *c;
+		rlist_foreach_entry(c, &p.customers, in_route) {
+			c->p = 0;
+		}
+	}
 
 	/* Compute deadline with sub-second precision when --t_max_ms is used */
 	clock_t start_clock = clock();
@@ -403,10 +405,10 @@ eama_solver_solve(void)
 			debug_print(tt_sprintf("routes number: %d", s->n_routes), PURPLE);
 		if (delete_route(s, deadline) != 0)
 			break;
-		assert(rlist_empty(&s->ejection_pool));
+		assert(s->ejection_pool_size == 0);
 		assert(s->w == NULL);
 		solution_check_missed_customers(s);
-		assert(rlist_empty(&s->ejection_pool));
+		assert(s->ejection_pool_size == 0);
 
 		/* Log incumbent after successful route deletion */
 		clock_t now = clock();
@@ -415,7 +417,7 @@ eama_solver_solve(void)
 		log_incumbent(s, elapsed_ms);
 	}
 	assert(s->w == NULL);
-	assert(rlist_empty(&s->ejection_pool));
+	assert(s->ejection_pool_size == 0);
 	if (options.log_level >= LOGLEVEL_NORMAL)
 		debug_print("completed successfully", GREEN);
 	return s;

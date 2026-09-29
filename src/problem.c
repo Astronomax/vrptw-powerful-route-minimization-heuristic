@@ -5,10 +5,10 @@
 struct problem p;
 
 static double
-customer_distance(struct customer *lhs, struct customer *rhs)
+coord_distance(const double *xs, const double *ys, int i, int j)
 {
-	double dx = lhs->x - rhs->x;
-	double dy = lhs->y - rhs->y;
+	double dx = xs[i] - xs[j];
+	double dy = ys[i] - ys[j];
 	return sqrt(dx * dx + dy * dy);
 }
 
@@ -33,20 +33,11 @@ problem_destroy(void)
 }
 
 void
-problem_init_distance_matrix(void)
+problem_init_distance_matrix(const double *xs, const double *ys)
 {
-	struct customer *customers[MAX_N_CUSTOMERS + 1] = {0};
-	customers[0] = p.depot;
-
-	struct customer *c;
-	rlist_foreach_entry(c, &p.customers, in_route)
-		customers[c->id] = c;
-
 	for (int i = 0; i <= p.n_customers; i++) {
-		assert(customers[i] != NULL);
 		for (int j = i; j <= p.n_customers; j++) {
-			assert(customers[j] != NULL);
-			double distance = customer_distance(customers[i], customers[j]);
+			double distance = coord_distance(xs, ys, i, j);
 			p.distance_matrix[i][j] = distance;
 			p.distance_matrix[j][i] = distance;
 		}

@@ -739,11 +739,11 @@ solution_print_debug(solution *s)
 {
 	printf("s->w: %p\n", s->w);
 	printf("s->ejection_pool: ");
-	struct customer *c;
-	rlist_foreach_entry(c, &s->ejection_pool, in_eject)
-		printf("%p, ", c);
+	for (int i = 0; i < s->ejection_pool_size; i++)
+		printf("%p, ", (void *)s->ejection_pool[i]);
 	printf("\n");
 	printf("s->n_routes: %d\n", s->n_routes);
+	customer *c;
 	for (int i = 0; i < s->n_routes; i++) {
 		route_foreach(c, s->routes[i])
 			printf("%p, ", c);
@@ -825,7 +825,7 @@ solution_default(void)
 	s->meta = solution_meta_new(&problem_customers);
 	assert(rlist_empty(&problem_customers));
 
-	rlist_create(&s->ejection_pool);
+	s->ejection_pool_size = 0;
 	s->n_routes = p.n_customers;
 	int i = 0;
 	customer *c;
@@ -910,7 +910,7 @@ solution_decode(const char *file)
 	s->meta = solution_meta_new(&problem_customers);
 	assert(rlist_empty(&problem_customers));
 
-	rlist_create(&s->ejection_pool);
+	s->ejection_pool_size = 0;
 	s->n_routes = (int)parsed_routes.size();
 
 	/* Temp array for route_init */
@@ -951,13 +951,14 @@ solution_dup(solution *s)
 
 	dup->w = ((s->w != nullptr) ? dup->meta->idx[s->w->id] : nullptr);
 
-	rlist_create(&dup->ejection_pool);
-	customer *c;
-	rlist_foreach_entry(c, &s->ejection_pool, in_eject) {
+	dup->ejection_pool_size = s->ejection_pool_size;
+	for (int i = 0; i < s->ejection_pool_size; i++) {
+		customer *c = s->ejection_pool[i];
 		assert(c->id != 0);
-		rlist_add_tail_entry(&dup->ejection_pool, dup->meta->idx[c->id], in_eject);
+		dup->ejection_pool[i] = dup->meta->idx[c->id];
 	}
 	dup->n_routes = s->n_routes;
+	customer *c;
 	for (int i = 0; i < dup->n_routes; i++) {
 		route *r = route_new();
 		r->size = s->routes[i]->size;
@@ -978,9 +979,24 @@ void
 solution_move(solution *dst, solution *src)
 {
 	solution_check_missed_customers(dst);
+	/*
+	 * `customer::p` is a solver-global ejection-frequency counter, not
+	 * transactional solution state: it accumulates across snapshots and
+	 * must NOT be reverted by a rollback. `src` is the older snapshot whose
+	 * customers still carry stale `p` (copied from the problem master at
+	 * solution_dup time), so copy dst's current `p` onto src's customers
+	 * before the swap -- after the swap dst owns src's customers (now with
+	 * the live `p`), and src (about to be deleted) takes dst's old ones.
+	 * idx[0] (depot) is not populated, hence 1..n_customers.
+	 */
+	for (int id = 1; id <= p.n_customers; id++)
+		src->meta->idx[id]->p = dst->meta->idx[id]->p;
 	SWAP(dst->w, src->w);
 	SWAP(dst->meta, src->meta);
-	rlist_swap(&dst->ejection_pool, &src->ejection_pool);
+	/* Swap the ejection pools element-wise (size differs in general). */
+	for (int i = 0; i < MAX(dst->ejection_pool_size, src->ejection_pool_size); i++)
+		SWAP(dst->ejection_pool[i], src->ejection_pool[i]);
+	SWAP(dst->ejection_pool_size, src->ejection_pool_size);
 	for (int i = 0; i < MAX(dst->n_routes, src->n_routes); i++)
 		SWAP(dst->routes[i], src->routes[i]);
 	SWAP(dst->n_routes, src->n_routes);
@@ -993,9 +1009,8 @@ solution_delete(solution *s)
 {
 	solution_meta_delete(s->meta);
 	free(s->w);
-	struct customer *c, *tmp;
-	rlist_foreach_entry_safe(c, &s->ejection_pool, in_eject, tmp)
-		customer_delete(c);
+	for (int i = 0; i < s->ejection_pool_size; i++)
+		customer_delete(s->ejection_pool[i]);
 	for (int i = 0; i < s->n_routes; i++)
 		route_delete(s->routes[i]);
 	free(s);
@@ -1110,7 +1125,7 @@ solution_eliminate_random_route(struct solution *s)
 		struct customer *c = r->customers[i];
 		c->route = nullptr;
 		c->idx = -1;
-		rlist_add_tail_entry(&s->ejection_pool, c, in_eject);
+		s->ejection_pool[s->ejection_pool_size++] = c;
 	}
 	customer_delete(depot_head(r));
 	customer_delete(depot_tail(r));

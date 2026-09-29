@@ -12,7 +12,6 @@ feasible_ejections_f(va_list ap)
 {
 	struct route *r = va_arg(ap, struct route *);
 	int k_max = va_arg(ap, int);
-	int64_t *ps = va_arg(ap, int64_t *);
 	struct customer **e = va_arg(ap, struct customer **);
 	int *k = va_arg(ap, int *);
 	int64_t *p_best = va_arg(ap, int64_t *);
@@ -53,15 +52,6 @@ feasible_ejections_f(va_list ap)
 	int64_t p_sum = 0;
 	/** The last ejected customer. Will be initialized after incr_k */
 	struct customer *e_last;
-	/** Initialize `a_earliest`. Used only for pruning condition c. */
-	struct customer *prev = depot_head(r);
-	prev->a_earliest = prev->e;
-	for (int i = 1; i < r->size; i++) {
-		struct customer *next = r->customers[i];
-		next->a_earliest = MAX(next->e, prev->a + prev->s + dist(prev, next));
-		assert(next->a == MIN(next->a_earliest, next->l));
-		prev = next;
-	}
 	/** There is no ejected customers now. Let's eject first. */
 	goto incr_k;
 	for(;;) {
@@ -69,10 +59,10 @@ feasible_ejections_f(va_list ap)
 		    p_sum < *p_best &&
 		    /** Doesn't violate time-window constraint */
 		    s_first->a_earliest_temp <= s_first->l &&
-			/** See the article. */
-			s_first->a_temp <= s_first->z &&
-			/** There is no infeasibilities on suffix. */
-			s_first->tw_sf == 0. &&
+		    /** See the article. */
+		    s_first->a_temp <= s_first->z &&
+		    /** There is no infeasibilities on suffix. */
+		    s_first->tw_sf == 0. &&
 		    /** Doesn't violate capacity constraint */
 		    total_demand <= p.vc) {
 			/** Update `p_best` and pass the current optimum "up". */
@@ -101,7 +91,7 @@ feasible_ejections_f(va_list ap)
 				return 0;
 			}
 			/** Return the last ejected customer back. */
-			p_sum -= ps[e_last->id];
+			p_sum -= e_last->p;
 			total_demand += e_last->demand;
 			--(*k);
 			/*
@@ -120,26 +110,25 @@ feasible_ejections_f(va_list ap)
 			assert(ne_to_return >= 0);
 			ne_size -= ne_to_return;
 			s_size += ne_to_return + 1;
+		#ifndef NDEBUG
 			ne_last = ne[ne_size - 1];
+		#endif
 			s_first = s[s_size - 1];
 		incr_last:
 			ne[ne_size++] = e_last;
-			p_sum -= ps[e_last->id];
+			p_sum -= e_last->p;
 			total_demand += e_last->demand;
 			--(*k);
 		#ifndef NDEBUG
-			prev = ne_last;
+			DEBUG_ASSERT_NEAR(e_last->a_earliest_temp, MAX(e_last->e,
+				ne_last->a_temp + ne_last->s + dist(ne_last, e_last)));
+			DEBUG_ASSERT_NEAR(e_last->a_temp, MIN(e_last->a_earliest_temp, e_last->l));
 		#endif
 			ne_last = e_last;
-		#ifndef NDEBUG
-			DEBUG_ASSERT_NEAR(ne_last->a_earliest_temp, MAX(ne_last->e,
-				prev->a_temp + prev->s + dist(prev, ne_last)));
-			DEBUG_ASSERT_NEAR(ne_last->a_temp, MIN(ne_last->a_earliest_temp, ne_last->l));
-		#endif
 		incr_k:
 			assert(s_first == s[s_size - 1]);
 			e[*k] = s_first;
-			p_sum += ps[s_first->id];
+			p_sum += s_first->p;
 			total_demand -= s_first->demand;
 			e_last = s_first;
 			s_first = s[--s_size - 1];

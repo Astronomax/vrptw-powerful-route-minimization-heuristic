@@ -9,9 +9,6 @@ customer_dup(struct customer *c)
 	dup->route = NULL;
 	dup->idx = -1;
 	rlist_create(&dup->in_route);
-	rlist_create(&dup->in_eject);
-	rlist_create(&dup->in_eject_temp);
-	rlist_create(&dup->in_opt_eject);
 	return dup;
 }
 

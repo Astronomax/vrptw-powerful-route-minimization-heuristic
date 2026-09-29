@@ -27,7 +27,7 @@ void
 problem_destroy(void);
 
 void
-problem_init_distance_matrix(void);
+problem_init_distance_matrix(const double *xs, const double *ys);
 
 int
 problem_routes_straight_lower_bound(void);

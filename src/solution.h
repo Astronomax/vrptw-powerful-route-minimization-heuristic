@@ -15,9 +15,17 @@ extern "C" {
 struct solution_meta;
 
 struct solution {
-    	struct customer *w;
-    	struct solution_meta *meta;
-	struct rlist ejection_pool;
+	struct customer *w;
+	struct solution_meta *meta;
+	/*
+	 * Ejection pool: a LIFO stack of ejected customers (those removed from
+	 * routes and awaiting re-insertion). Fixed-size array + size counter,
+	 * sized for the worst case of every customer being ejected at once.
+	 * Replaces the former intrusive rlist, so customer no longer carries an
+	 * `in_eject` link.
+	 */
+	struct customer *ejection_pool[MAX_N_CUSTOMERS + 2];
+	int ejection_pool_size;
 	int n_routes;
 	struct route *routes[0];
 };
@@ -112,7 +120,8 @@ solution_check_missed_customers(struct solution *s) {
 		}
 	}
 	struct customer *c;
-	rlist_foreach_entry(c, &s->ejection_pool, in_eject) {
+	for (int i = 0; i < s->ejection_pool_size; i++) {
+		c = s->ejection_pool[i];
 		if (!used[c->id]) cnt++;
 		used[c->id] = true;
 	}

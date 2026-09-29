@@ -37,8 +37,15 @@ problem_decode(const char *file)
 		f >> word;
 		assert(expected == word);
 	}
-#define read_customer() do {					\
-	f >> c.x >> c.y >> c.demand >> c.e >> c.l >> c.s;	\
+	/*
+	 * Coordinates are only needed to build the distance matrix; they are not
+	 * stored in struct customer. Collect them here, indexed by id, and hand
+	 * them to problem_init_distance_matrix.
+	 */
+	static double xs[MAX_N_CUSTOMERS + 1];
+	static double ys[MAX_N_CUSTOMERS + 1];
+#define read_customer() do {							\
+	f >> xs[c.id] >> ys[c.id] >> c.demand >> c.e >> c.l >> c.s;		\
 } while(0)
 	customer c{};
 	f >> c.id;
@@ -51,6 +58,6 @@ problem_decode(const char *file)
 		rlist_add_tail_entry(&p.customers, customer_dup(&c), in_route);
 		++p.n_customers;
 	}
-	problem_init_distance_matrix();
+	problem_init_distance_matrix(xs, ys);
 #undef read_customer
 }

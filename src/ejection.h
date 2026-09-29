@@ -15,8 +15,8 @@
 	 * while iterating through feasible ejections.
 	 */				\
 	double a_temp;			\
-	double a_earliest_temp;	\
-	double a_earliest
+	double a_earliest_temp;		\
+	int64_t p
 
 /**
  * @brief Iterate over feasible ejections (a subsets of route customers such

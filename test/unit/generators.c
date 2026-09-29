@@ -8,8 +8,6 @@ generate_random_customer(void)
 	struct customer *c = malloc(sizeof(*c));
 	/** Uninitialized */
 	c->id = -1;
-	c->x = (double)real_random_in_range(0, 100);
-	c->y = (double)real_random_in_range(0, 100);
 	c->demand = (double)real_random_in_range(0, 10);
 	c->e = (double)real_random_in_range(0, 50);
 	c->l = c->e + (double)real_random_in_range(0, 50);
@@ -17,9 +15,6 @@ generate_random_customer(void)
 	c->route = NULL;
 	c->idx = -1;
 	rlist_create(&c->in_route);
-	rlist_create(&c->in_eject);
-	rlist_create(&c->in_eject_temp);
-	rlist_create(&c->in_opt_eject);
 	return c;
 }
 
@@ -60,9 +55,20 @@ generate_random_problem(int max_n_customers)
 	assert(max_n_customers >= 2);
 	p.n_customers =
 		(int)pseudo_random_in_range(2, max_n_customers);
+	/*
+	 * Coordinates are not stored in struct customer; collect them here
+	 * (indexed by id) and build the distance matrix right away.
+	 */
+	static double xs[MAX_N_CUSTOMERS + 1];
+	static double ys[MAX_N_CUSTOMERS + 1];
+	xs[0] = (double)real_random_in_range(0, 100);
+	ys[0] = (double)real_random_in_range(0, 100);
 	for (int i = 0; i < p.n_customers; i++) {
 		struct customer *c = generate_random_customer();
 		c->id = i + 1;
+		xs[c->id] = (double)real_random_in_range(0, 100);
+		ys[c->id] = (double)real_random_in_range(0, 100);
 		rlist_add_tail_entry(&p.customers, c, in_route);
 	}
+	problem_init_distance_matrix(xs, ys);
 }

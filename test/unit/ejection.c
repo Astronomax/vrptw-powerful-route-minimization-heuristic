@@ -97,13 +97,20 @@ ejections_random_route(int n_tests)
 
 	for (int i = 0; i < n_tests; i++) {
 		generate_random_problem(MAX_N_CUSTOMERS_TEST);
-		problem_init_distance_matrix();
 
 		for (int j = 0; j <= MAX_N_CUSTOMERS_TEST; j++)
 			ps[j] = randint(1, 5);
+		/*
+		 * feasible_ejections_f reads p from customer::p (not from a
+		 * global array), so seed it on the master customers (route_init
+		 * dups them, and customer_dup copies p) -- the reference path
+		 * below uses the same ps[id], keeping both sides in sync.
+		 */
+		struct customer *w;
+		rlist_foreach_entry(w, &p.customers, in_route)
+			w->p = ps[w->id];
 
 		struct route *route = route_new();
-		struct customer *w;
 		int j = 0;
 		rlist_foreach_entry(w, &p.customers, in_route) {
 			if (w->id == 0) continue;
@@ -121,7 +128,7 @@ ejections_random_route(int n_tests)
 			*f2 = fiber_new(feasible_ejections_f);
 
 		fiber_start(f1, p.n_customers, 5, &ejection_idx_exp);
-		fiber_start(f2, route, 5, &ps[0], ejection_act, &ejection_act_size,
+		fiber_start(f2, route, 5, ejection_act, &ejection_act_size,
 			    &p_best_act);
 
 		while(!fiber_is_dead(f1)) {
