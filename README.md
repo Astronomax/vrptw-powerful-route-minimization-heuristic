@@ -131,6 +131,7 @@ Options:
   --i_rand <value>        - Sets the preferred i_rand.
   --lower_bound <value>   - Sets the preferred lower_bound.
   --seed <value>          - Sets the pseudo-random seed.
+  --squeeze <mode>        - Squeeze neighbourhood: near, full_fast, full_slow.
 $ ./build/routes GehringHomberger1000/C1_10_1.TXT C1_10_1.sol --lower_bound 100 --t_max 120
 ```
 After completion, the current directory will contain a file with the solution, the name of which you specified when starting. In this example it is "C1_10_1.sol".

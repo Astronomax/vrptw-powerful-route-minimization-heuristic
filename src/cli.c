@@ -22,6 +22,12 @@ static const char *log_levels[3] = {
 	[LOGLEVEL_VERBOSE] = "verbose",
 };
 
+static const char *squeeze_modes[3] = {
+	[SQUEEZE_NEAR] = "near",
+	[SQUEEZE_FULL_FAST] = "full_fast",
+	[SQUEEZE_FULL_SLOW] = "full_slow",
+};
+
 static void
 usage(void)
 {
@@ -37,6 +43,7 @@ usage(void)
 	printf("  --i_rand <value>        - Sets the preferred i_rand.\n");
 	printf("  --lower_bound <value>   - Sets the preferred lower_bound.\n");
 	printf("  --seed <value>          - Sets the pseudo-random seed.\n");
+	printf("  --squeeze <mode>        - Squeeze neighbourhood: near, full_fast, full_slow.\n");
 	printf("  --initial_solution <f>  - Import initial solution from file.\n");
 	printf("  --log_incumbent_solutions - Emit full incumbent routes as JSON lines.\n");
 }
@@ -177,8 +184,11 @@ parse_option(void)
 				options.has_seed = true;
 				return;
 			}
-			if (match_longopt("simd")) {
-				options.simd = true;
+			if (match_longopt("squeeze")) {
+				if (at_end())
+					panic("error: --squeeze needs a valid option.");
+				options.squeeze =
+					(squeeze_mode) parse_multi_option(next_arg(), 3, squeeze_modes);
 				return;
 			}
 		default:
@@ -214,7 +224,7 @@ parse_arguments(int argc, const char *argv[])
 	options.lower_bound = 0;
 	options.has_seed = false;
 	options.seed = 0;
-	options.simd = false;
+	options.squeeze = SQUEEZE_NEAR;
 
 	for (arg_index = 3; arg_index < arg_count; arg_index++)
 	{

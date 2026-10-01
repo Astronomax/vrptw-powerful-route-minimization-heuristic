@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "solution.h"
+
 typedef enum
 {
     LOGLEVEL_NOT_SET = -1,
@@ -29,7 +31,7 @@ struct cli_options {
     int lower_bound;
     bool has_seed;
     uint64_t seed;
-    bool simd;
+    squeeze_mode squeeze;
 };
 
 extern struct cli_options options;

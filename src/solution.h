@@ -14,6 +14,19 @@ extern "C" {
 
 struct solution_meta;
 
+/*
+ * Squeeze neighbourhood strategy for solution_find_best_modification.
+ *   SQUEEZE_NEAR      - consider only the n_near nearest neighbours of each w
+ *                       (the original heuristic, lighter per call).
+ *   SQUEEZE_FULL_FAST - full O(n*|r|) neighbourhood, AVX2 vectorized kernel.
+ *   SQUEEZE_FULL_SLOW - full O(n*|r|) neighbourhood, scalar kernel.
+ */
+typedef enum {
+	SQUEEZE_NEAR,
+	SQUEEZE_FULL_FAST,
+	SQUEEZE_FULL_SLOW,
+} squeeze_mode;
+
 struct solution {
 	struct customer *w;
 	struct solution_meta *meta;
@@ -51,9 +64,9 @@ solution_global_init();
  */
 double
 solution_find_best_modification(struct solution *s, struct route *r,
-				double alpha, double beta,
+				int n_near, double alpha, double beta,
 				double early_exit_delta,
-				struct modification *out, bool simd);
+				struct modification *out, squeeze_mode mode);
 
 struct solution *
 solution_default(void);

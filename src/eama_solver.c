@@ -109,9 +109,9 @@ squeeze(struct solution *s)
 		double v_route_penalty = route_penalty(v_route, eama_solver.alpha, eama_solver.beta);
 		struct modification opt_modification;
 		double opt_delta = solution_find_best_modification(
-			s, v_route,
+			s, v_route, options.n_near,
 			eama_solver.alpha, eama_solver.beta,
-			-v_route_penalty + EPS5, &opt_modification, options.simd);
+			-v_route_penalty + EPS5, &opt_modification, options.squeeze);
 
 		if (options.log_level == LOGLEVEL_VERBOSE)
 			debug_print(tt_sprintf("opt modification delta: %f", opt_delta), RESET);

@@ -639,39 +639,136 @@ inter_batch(customer *v, const struct w_soa *soa, struct route *r,
 	return scalar_inter_batch(v, soa, alpha, beta, early_exit_delta, best_m, best_delta);
 }
 
-double
-solution_find_best_modification(struct solution *s, struct route *r,
-				double alpha, double beta,
-				double early_exit_delta,
-				struct modification *out, bool simd)
+/*
+ * Intra-route pass (shared by all squeeze modes): for each non-depot w in r,
+ * set up the per-w out-relocate scratch, then for every position v in r
+ * (v != w) evaluate intra-route OUT_RELOCATE and EXCHANGE. Returns true on
+ * early-exit (best_delta <= early_exit_delta).
+ */
+static bool
+intra_pass(struct route *r, double alpha, double beta,
+	   double early_exit_delta,
+	   struct modification *best_m, double *best_delta,
+	   intra_route_out_relocate_data *out_relocate_current)
 {
-	if (!solution_global_initialized)
-		solution_global_init();
+	customer *w;
+	route_foreach(w, r) {
+		if (w->id == 0)
+			continue;
+		intra_route_out_relocate_data_destroy(out_relocate_current);
+		intra_route_out_relocate_data_create(out_relocate_current, w);
+		for (int j = 1; j < r->size; j++) {
+			customer *v = r->customers[j];
+			if (v == w)
+				continue;
+			if (intra_out_relocate_try(out_relocate_current, v, w,
+						   alpha, beta, early_exit_delta,
+						   best_m, best_delta))
+				return true;
+			if (intra_exchange_try(v, w, alpha, beta,
+					       early_exit_delta,
+					       best_m, best_delta))
+				return true;
+		}
+	}
+	return false;
+}
 
-	/*
-	 * Per-w scratch for the intra-route out-relocate fast path. r is
-	 * nullptr until the first non-depot w is processed; destroy() is a
-	 * no-op in that state.
-	 */
+/*
+ * SQUEEZE_NEAR: the original heuristic. For each w in r (random order), try
+ * v = depot_tail of every route plus the n_near nearest neighbours of w.
+ * Inter- and intra-route candidates are evaluated together per (v, w).
+ */
+static double
+solution_find_best_modification_near(struct solution *s, struct route *r,
+				     int n_near, double alpha, double beta,
+				     double early_exit_delta,
+				     struct modification *best_m)
+{
 	intra_route_out_relocate_data out_relocate_current;
 	out_relocate_current.r = nullptr;
 	out_relocate_current.w = nullptr;
 
-	solution_check_routes(s);
+	struct customer **idx = s->meta->idx;
+
+	static customer *permutation[MAX_N_CUSTOMERS];
+	int n = 0;
+	customer *c;
+	route_foreach(c, r)
+		permutation[n++] = c;
+	random_shuffle(permutation, n);
+
+	double best_delta = INFINITY;
+
+#define check_modifications() do {						\
+	if (v != w && !is_ejected(v)) {						\
+		if (v->route != w->route) {					\
+			if (inter_route_try(v, w, alpha, beta,			\
+			    early_exit_delta, best_m, &best_delta))		\
+				goto done;					\
+		} else if (w->id != 0) {					\
+			if (intra_out_relocate_try(&out_relocate_current,	\
+			    v, w, alpha, beta, early_exit_delta,		\
+			    best_m, &best_delta))				\
+				goto done;					\
+			if (intra_exchange_try(v, w, alpha, beta,		\
+			    early_exit_delta, best_m, &best_delta))		\
+				goto done;					\
+		}								\
+	}									\
+} while (0)
+	customer *v;
+	for (int j = 0; j < n; j++) {
+		customer *w = permutation[j];
+		if (w->id != 0) {
+			intra_route_out_relocate_data_destroy(
+				&out_relocate_current);
+			intra_route_out_relocate_data_create(
+				&out_relocate_current, w);
+			for (int i = 0; i < s->n_routes; i++) {
+				v = depot_tail(s->routes[i]);
+				check_modifications();
+			}
+		}
+		for (int i = 0; i < MIN(n_near, p.n_customers); i++) {
+			assert(neighbours_sorted[w->id][i] != 0);
+			v = idx[neighbours_sorted[w->id][i]];
+			check_modifications();
+		}
+	}
+
+#undef check_modifications
+
+done:
+	intra_route_out_relocate_data_destroy(&out_relocate_current);
+	return best_delta;
+}
+
+/*
+ * SQUEEZE_FULL_*: full O(n*|r|) neighbourhood. Inter pass scans every
+ * position v of every route != r against the whole w batch (vectorized for
+ * FULL_FAST, scalar for FULL_SLOW); intra pass is shared.
+ */
+static double
+solution_find_best_modification_full(struct solution *s, struct route *r,
+				     double alpha, double beta,
+				     double early_exit_delta,
+				     struct modification *best_m, bool simd)
+{
+	intra_route_out_relocate_data out_relocate_current;
+	out_relocate_current.r = nullptr;
+	out_relocate_current.w = nullptr;
 
 	/* SoA of r's non-depot customers, sorted by id (for contiguous dist). */
 	static struct w_soa soa;
 	build_w_soa(r, &soa);
 
-	struct modification best_m = modification_new(INSERT, nullptr, nullptr);
 	double best_delta = INFINITY;
 
 	/*
 	 * Inter-route pass (reversed neighbourhood): for each position v in
 	 * every route != r, evaluate OUT_RELOCATE / EXCHANGE / TWO_OPT against
-	 * the whole w batch via the SIMD kernel. v->id == 0 (depot_tail) ->
-	 * OUT_RELOCATE only. All 3 types are applicable for every inter
-	 * non-depot v and every non-depot w (no per-w mask needed).
+	 * the whole w batch. v->id == 0 (depot_tail) -> OUT_RELOCATE only.
 	 */
 	for (int i = 0; i < s->n_routes; i++) {
 		struct route *vr = s->routes[i];
@@ -681,36 +778,51 @@ solution_find_best_modification(struct solution *s, struct route *r,
 			customer *v = vr->customers[j];
 			if (inter_batch(v, &soa, r, alpha, beta,
 					early_exit_delta,
-					&best_m, &best_delta, simd))
+					best_m, &best_delta, simd))
 				goto done;
 		}
 	}
 
-	/*
-	 * Intra-route pass (v in r): keep the scalar helpers with the per-w
-	 * route_dup scratch. w outer, v inner over r's positions.
-	 */
-	for (int k = 0; k < soa.n; k++) {
-		customer *w = soa.w_ptr[k];
-		intra_route_out_relocate_data_destroy(&out_relocate_current);
-		intra_route_out_relocate_data_create(&out_relocate_current, w);
-		for (int j = 1; j < r->size; j++) {
-			customer *v = r->customers[j];
-			if (v == w)
-				continue;
-			if (intra_out_relocate_try(&out_relocate_current, v, w,
-						   alpha, beta, early_exit_delta,
-						   &best_m, &best_delta))
-				goto done;
-			if (intra_exchange_try(v, w, alpha, beta,
-					       early_exit_delta,
-					       &best_m, &best_delta))
-				goto done;
-		}
-	}
+	if (intra_pass(r, alpha, beta, early_exit_delta,
+		       best_m, &best_delta, &out_relocate_current))
+		goto done;
 
 done:
 	intra_route_out_relocate_data_destroy(&out_relocate_current);
+	return best_delta;
+}
+
+double
+solution_find_best_modification(struct solution *s, struct route *r,
+				int n_near, double alpha, double beta,
+				double early_exit_delta,
+				struct modification *out, squeeze_mode mode)
+{
+	if (!solution_global_initialized)
+		solution_global_init();
+
+	solution_check_routes(s);
+
+	struct modification best_m = modification_new(INSERT, nullptr, nullptr);
+	double best_delta;
+	switch (mode) {
+	case SQUEEZE_NEAR:
+		best_delta = solution_find_best_modification_near(
+			s, r, n_near, alpha, beta,
+			early_exit_delta, &best_m);
+		break;
+	case SQUEEZE_FULL_FAST:
+		best_delta = solution_find_best_modification_full(
+			s, r, alpha, beta, early_exit_delta, &best_m, true/*simd*/);
+		break;
+	case SQUEEZE_FULL_SLOW:
+		best_delta = solution_find_best_modification_full(
+			s, r, alpha, beta, early_exit_delta, &best_m, false/*simd*/);
+		break;
+	default:
+		unreachable();
+	}
+	(void)best_delta;
 	*out = best_m;
 	return best_delta;
 }
